@@ -33,7 +33,10 @@ def predict_img(net,
             probs = F.softmax(output, dim=1)[0]
         else:
             probs = torch.sigmoid(output)[0]
-        print(full_img.shape)
+        
+        print('F.softmax(output, dim=1).shape: ',F.softmax(output, dim=1).shape)
+        print('probs.shape: ',probs.shape)
+
         tf = transforms.Compose([
             transforms.ToPILImage(),
             transforms.Resize((full_img.shape[0], full_img.shape[1])),
@@ -41,6 +44,7 @@ def predict_img(net,
         ])
 
         full_mask = tf(probs.cpu()).squeeze()
+        print('full_mask.shape: ',full_mask.shape)
 
     if net.n_classes == 1:
         return (full_mask > out_threshold).numpy()
@@ -75,12 +79,18 @@ def get_output_filenames(args):
 
 def mask_to_image(mask: np.ndarray):
     if mask.ndim == 2:
+        print('mask.ndim = 2')
         return Image.fromarray((mask * 255).astype(np.uint8))
     elif mask.ndim == 3:
-        backgrand=Image.fromarray(np.uint8(mask[0]*0))
-        class1=Image.fromarray(np.uint8(mask[1]*255))
-        class2=Image.fromarray(np.uint8(mask[2]*255))
-        result_img=Image.merge('RGB',(class2,class1,backgrand))
+        print('mask.ndim = 3')
+        channel=mask.shape[0]
+        if channel==3:
+            backgrand=Image.fromarray(np.uint8(mask[0]*0))
+            class1=Image.fromarray(np.uint8(mask[1]*255))
+            class2=Image.fromarray(np.uint8(mask[2]*255))
+            result_img=Image.merge('RGB',(class2,class1,backgrand))
+        elif channel==2:
+            result_img=Image.fromarray(np.uint8(mask[1]*255))
         return result_img
         # return Image.fromarray((np.argmax(mask, axis=0) * 255 / mask.shape[0]).astype(np.uint8))
 
@@ -113,8 +123,9 @@ if __name__ == '__main__':
                            scale_factor=args.scale,
                            out_threshold=args.mask_threshold,
                            device=device)
-        print('mask_pre type',type(mask))
-        print('mask_pre shape',mask.shape)
+        print('mask_pre type: ',type(mask))
+        print('mask_pre shape: ',mask.shape)
+        print('mask_pre: ',mask)
 
         if not args.no_save:
             out_filename = out_files[i]

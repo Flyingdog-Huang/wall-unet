@@ -42,7 +42,7 @@ class BasicDataset(Dataset):
         # print('pil_img.shape: ',pil_img.shape)
         h, w = pil_img.shape[:2]
         if h>7000:
-            scale=0.2
+            scale=0.1
         newW, newH = int(scale * w), int(scale * h)
         assert newW > 0 and newH > 0, 'Scale is too small, resized images would have no pixel'
         # pil_img = pil_img.resize((newW, newH))
