@@ -313,7 +313,7 @@ def get_args():
                         '-e',
                         metavar='E',
                         type=int,
-                        default=1,
+                        default=1, # 100
                         help='Number of epochs')
     parser.add_argument('--batch-size',
                         '-b',
@@ -326,7 +326,7 @@ def get_args():
                         '-l',
                         metavar='LR',
                         type=float,
-                        default=0.00001,
+                        default=0.000001,
                         help='Learning rate',
                         dest='lr')
     parser.add_argument('--load',
@@ -337,7 +337,7 @@ def get_args():
     parser.add_argument('--scale',
                         '-s',
                         type=float,
-                        default=0.1,
+                        default=0.1, # 0.5
                         help='Downscaling factor of the images')
     parser.add_argument(
         '--validation',
@@ -359,7 +359,7 @@ if __name__ == '__main__':
 
     logging.basicConfig(level=logging.INFO,
                         format='%(levelname)s: %(message)s')
-    cuda_name = 'cuda'
+    cuda_name = 'cuda'# 'cuda:1'
     device = torch.device(cuda_name if torch.cuda.is_available() else 'cpu')
     logging.info(f'Using device {device}')
 
