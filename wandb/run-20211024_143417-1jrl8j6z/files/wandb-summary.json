@@ -1,1 +1,0 @@
-{"MIOU Train": 0.4690791964530945, "CE_dice_loss": 1.1114373207092285, "BCE_dice_loss": 1.1846188306808472, "_runtime": 11, "_timestamp": 1635057268, "_step": 0, "_wandb": {"runtime": 7}}
