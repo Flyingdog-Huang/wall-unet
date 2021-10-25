@@ -19,12 +19,13 @@ from unet import UNet
 
 from utils.miou import IOU, MIOU
 import numpy as np
+from torchvision.transforms import transforms
 
 # dir_img = Path('./data/imgs/')
 # dir_mask = Path('./data/masks/')
 
-dir_img = Path('./data/CVC-FP/')
-dir_mask = Path('./data/CVC-FP/')
+dir_img = Path('../data/CVC-FP/')
+dir_mask = Path('../data/CVC-FP/')
 
 # dir_img = Path('../../../../data/floorplan/selflabel/imgs/')
 # dir_mask = Path('../../../../data/floorplan/selflabel/masks/')
@@ -36,7 +37,7 @@ dir_mask = Path('./data/CVC-FP/')
 # dir_img = Path('../../../../data/floorplan/CVC-FP/')
 # dir_mask = Path('../../../../data/floorplan/CVC-FP/')
 
-dir_checkpoint = Path('./checkpoints/')
+dir_checkpoint = Path('../checkpoints/')
 
 
 def train_net(net,
@@ -49,10 +50,11 @@ def train_net(net,
               img_scale: float = 0.5,
               amp: bool = False):
     # 1. Create dataset
+    is_tf= True # False
     try:
-        dataset = CarvanaDataset(dir_img, dir_mask, img_scale)
+        dataset = CarvanaDataset(dir_img, dir_mask, img_scale,is_tf)
     except (AssertionError, RuntimeError):
-        dataset = BasicDataset(dir_img, dir_mask, img_scale)
+        dataset = BasicDataset(dir_img, dir_mask, img_scale,is_tf)
     # dataset=PimgDataset(dir_img,dir_pimg,dir_mask,img_scale)
 
     # 2. Split into train / validation partitions
@@ -117,6 +119,12 @@ def train_net(net,
                 images = batch['image']
                 true_masks = batch['mask']
 
+                # print()
+                # print('***********************************************')
+                # print()
+                # print('true_masks.shape: ',true_masks.shape)
+                # print('images.shape: ',images.shape)
+
                 # warm up LR
                 if global_step > 5000:
                     optimizer = optim.RMSprop(net.parameters(),
@@ -132,7 +140,13 @@ def train_net(net,
                     'the images are loaded correctly.'
 
                 images = images.to(device=device, dtype=torch.float32)
-                true_masks = true_masks.to(device=device, dtype=torch.long)
+                true_masks = true_masks.to(device=device, dtype=torch.long) # tensor(n,c,w,h)
+                # print()
+                # print('***********************************************')
+                # print()
+                # print('true_masks.shape: ',true_masks.shape)
+                # print('images.shape: ',images.shape)
+
                 # true_masks = true_masks.to(device=device, dtype=torch.float32)
 
                 # print()
@@ -190,8 +204,8 @@ def train_net(net,
                     mask_pred_onehot = F.one_hot(masks_pred_max,
                                                  net.n_classes).permute(
                                                      0, 3, 1, 2).float()
-                    # MIOU
-                    miou_train = MIOU(mask_pred_onehot, true_masks_onehot)
+                    # MIOU no bg
+                    miou_train = MIOU(mask_pred_onehot[:,1:,...], true_masks_onehot[:,1:,...])
 
                     # print()
                     # print('mask_pred_onehot.shape: ',mask_pred_onehot.shape)

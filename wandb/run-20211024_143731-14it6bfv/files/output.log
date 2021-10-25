@@ -1,0 +1,37 @@
+INFO: Starting training:
+        Epochs:          1
+        Batch size:      1
+        Learning rate:   1e-05
+        Training size:   9
+        Validation size: 1
+        Checkpoints:     True
+        Device:          cuda
+        Images scaling:  0.1
+        Mixed Precision: True
+Epoch 1/1:   0%|                                                                                | 0/9 [00:01<?, ?img/s]
+Traceback (most recent call last):
+  File "train.py", line 390, in <module>
+    amp=args.amp)
+  File "train.py", line 118, in train_net
+    for batch in train_loader:
+  File "E:\conda\install\envs\unet\lib\site-packages\torch\utils\data\dataloader.py", line 521, in __next__
+    data = self._next_data()
+  File "E:\conda\install\envs\unet\lib\site-packages\torch\utils\data\dataloader.py", line 1203, in _next_data
+    return self._process_data(data)
+  File "E:\conda\install\envs\unet\lib\site-packages\torch\utils\data\dataloader.py", line 1229, in _process_data
+    data.reraise()
+  File "E:\conda\install\envs\unet\lib\site-packages\torch\_utils.py", line 425, in reraise
+    raise self.exc_type(msg)
+ValueError: Caught ValueError in DataLoader worker process 0.
+Original Traceback (most recent call last):
+  File "E:\conda\install\envs\unet\lib\site-packages\torch\utils\data\_utils\worker.py", line 287, in _worker_loop
+    data = fetcher.fetch(index)
+  File "E:\conda\install\envs\unet\lib\site-packages\torch\utils\data\_utils\fetch.py", line 44, in fetch
+    data = [self.dataset[idx] for idx in possibly_batched_index]
+  File "E:\conda\install\envs\unet\lib\site-packages\torch\utils\data\_utils\fetch.py", line 44, in <listcomp>
+    data = [self.dataset[idx] for idx in possibly_batched_index]
+  File "E:\conda\install\envs\unet\lib\site-packages\torch\utils\data\dataset.py", line 311, in __getitem__
+    return self.dataset[self.indices[idx]]
+  File "D:\project\gitExchange\wall-unet\utils\data_loading.py", line 192, in __getitem__
+    mask = mask.transpose((2, 0, 1))
+ValueError: axes don't match array

@@ -9,6 +9,7 @@ from PIL import Image
 from torch.utils.data import Dataset
 
 import cv2
+from torchvision.transforms import transforms
 from utils.resolveSVG import svg2label
 
 CVC_FP_className_list = [
@@ -18,12 +19,13 @@ CVC_FP_className_list = [
 
 
 class BasicDataset(Dataset):
-    def __init__(self, images_dir: str, masks_dir: str, scale: float = 1.0, mask_suffix: str = ''):
+    def __init__(self, images_dir: str, masks_dir: str, scale: float = 1.0, is_transforms:bool=False, mask_suffix: str = ''):
         self.images_dir = Path(images_dir)
         self.masks_dir = Path(masks_dir)
         assert 0 < scale <= 1, 'Scale must be between 0 and 1'
         self.scale = scale
         self.mask_suffix = mask_suffix
+        self.is_transforms=is_transforms
 
         self.ids = [splitext(file)[0] for file in listdir(images_dir) if not file.startswith('.') and not file.endswith('.svg')]
         if not self.ids:
@@ -34,7 +36,7 @@ class BasicDataset(Dataset):
         return len(self.ids)
 
     @classmethod
-    def preprocess(cls, pil_img, scale, is_mask):
+    def preprocess(cls, pil_img, scale, is_mask,is_transforms):
         # w, h = pil_img.size
         # print()
         # print('***********************************************')
@@ -57,9 +59,9 @@ class BasicDataset(Dataset):
 
         if is_mask:
             # CFC svg label
-            img_ndarray = img_ndarray[:,:,np.newaxis]
+            # img_ndarray = img_ndarray[:,:,np.newaxis]
             # print('mask.shape: ',img_ndarray.shape)
-            img_ndarray = img_ndarray.transpose((2, 0, 1))
+            # img_ndarray = img_ndarray.transpose((2, 0, 1))
             return img_ndarray
             # self-label by labelme:3-2(no bg)
             # backg,class1,class2=cv2.split(pil_img)
@@ -67,9 +69,25 @@ class BasicDataset(Dataset):
             # he=255-he
             # pil_img=cv2.merge([he,class1,class2])
 
+        # gaussian filter(or 双边滤波)
+        if is_transforms and np.random.rand()>0.5:
+            img_ndarray=cv2.GaussianBlur(img_ndarray,(3,3),0) 
+        
+        # contrast-对比度
+        if is_transforms and np.random.rand()>0.5:
+            contrast=np.random.randint(-50,50)
+            img_ndarray=img_ndarray*(contrast/127+1)-contrast
+        
         img_ndarray = img_ndarray / 255.0
+        
+        if is_transforms:
+            # gaussian noise-高斯噪音
+            noise=np.random.normal(0,0.01**0.5,img_ndarray.shape)
+            img_ndarray+=noise
+            img_ndarray=np.clip(img_ndarray,0,1)
+
         # print('data.shape: ',img_ndarray.shape)
-        img_ndarray = img_ndarray.transpose((2, 0, 1))
+        # img_ndarray = img_ndarray.transpose((2, 0, 1))
 
         # if img_ndarray.ndim == 2 and not is_mask:
         #     img_ndarray = img_ndarray[np.newaxis, ...]
@@ -108,7 +126,7 @@ class BasicDataset(Dataset):
 
         # print()
         # print('***********************************************')
-        # print()
+        # print('after load')
         # print('img.shape: ',img.shape)
         # print('mask.shape: ',mask.shape)
 
@@ -119,8 +137,69 @@ class BasicDataset(Dataset):
         # assert img.size == mask.size, \
         #     'Image and mask {name} should be the same size, but are {img.size} and {mask.size}'
 
-        img = self.preprocess(img, self.scale, is_mask=False)
-        mask = self.preprocess(mask, self.scale, is_mask=True)
+        img = self.preprocess(img, self.scale, is_mask=False,is_transforms=self.is_transforms)
+        mask = self.preprocess(mask, self.scale, is_mask=True,is_transforms=self.is_transforms)
+
+        # print('before Augmentation')
+        # print('mask.ndim: ',mask.ndim) 
+
+        # print()
+        # print('***********************************************')
+        # print('after preprocess')
+        # print('img.shape: ',img.shape)
+        # print('mask.shape: ',mask.shape)
+
+        # print()
+        # print('self.is_transforms: ',self.is_transforms)
+        # Augmentation 
+             
+        if self.is_transforms: 
+            # print('Augmentation')
+            # print()
+            # para transforms 
+            h,w,c=img.shape
+            img_shape=(w,h)
+            # rotation-旋转——+/-10°
+            if np.random.rand()>0.5:
+                # print('rotation')
+                angle=np.random.uniform(-10,10)
+                center=(w//2,h//2)
+                M=cv2.getRotationMatrix2D(center,angle,1)
+                img=cv2.warpAffine(img,M,img_shape)
+                mask=cv2.warpAffine(mask,M,img_shape)
+            # shift-平移
+            if np.random.rand()>0.5:
+                # print('shift')
+                x_shift=np.random.randint(-int(w*0.2),int(w*0.2))
+                y_shift=np.random.randint(-int(h*0.2),int(h*0.2))
+                M=np.float32([[1,0,x_shift],[0,1,y_shift]])
+                img=cv2.warpAffine(img,M,img_shape)
+                mask=cv2.warpAffine(mask,M,img_shape)
+            # inversion -反转:1-水平翻转;0-	垂直翻转;-1-水平垂直翻转
+            flip_modes=['水平垂直','垂直','水平']
+            for flip_mode in range(len(flip_modes)):
+                if np.random.rand()>0.5:
+                    # print(flip_modes[flip_mode])
+                    img=cv2.flip(img, flip_mode-1)
+                    mask=cv2.flip(mask, flip_mode-1)
+            # cropping - 剪裁 - 裁剪坐标为[y0:y1, x0:x1]
+            if np.random.rand()>0.5:
+                # print('cropping')
+                x_crop=np.random.randint(int(w*0.3))
+                y_crop=np.random.randint(int(h*0.3))
+                img=img[y_crop:y_crop+int(h*0.7),x_crop:x_crop+int(w*0.7)]
+                mask=mask[y_crop:y_crop+int(h*0.7),x_crop:x_crop+int(w*0.7)]
+        
+        # print()
+        # print('***********************************************')
+        # print('after Augmentation')
+        # print('img.shape: ',img.shape)
+        # print('mask.shape: ',mask.shape)
+        # print('mask.ndim: ',mask.ndim)
+        img = img.transpose((2, 0, 1))
+        if mask.ndim==2:
+            mask = mask[:,:,np.newaxis]
+        mask = mask.transpose((2, 0, 1))
 
         return {
             'image': torch.as_tensor(img.copy()).float().contiguous(),
@@ -130,8 +209,8 @@ class BasicDataset(Dataset):
 
 
 class CarvanaDataset(BasicDataset):
-    def __init__(self, images_dir, masks_dir, scale=1):
-        super().__init__(images_dir, masks_dir, scale, mask_suffix='_gt_')
+    def __init__(self, images_dir, masks_dir, scale=1, is_transforms=False):
+        super().__init__(images_dir, masks_dir, scale, is_transforms, mask_suffix='_gt_')
         # super().__init__(images_dir, masks_dir, scale, mask_suffix='_mask')
 
 

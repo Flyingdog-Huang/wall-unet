@@ -1,0 +1,269 @@
+2021-10-24 12:34:23,258 INFO    MainThread:41600 [internal.py:wandb_internal():89] W&B internal server running at pid: 41600, started at: 2021-10-24 12:34:23.249777
+2021-10-24 12:34:23,260 INFO    WriterThread:41600 [datastore.py:open_for_write():77] open: D:\project\gitExchange\wall-unet\wandb\run-20211024_123422-da2mg4qf\run-da2mg4qf.wandb
+2021-10-24 12:34:23,260 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: check_version
+2021-10-24 12:34:23,262 DEBUG   SenderThread:41600 [sender.py:send():182] send: header
+2021-10-24 12:34:23,262 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: check_version
+2021-10-24 12:34:26,699 DEBUG   SenderThread:41600 [sender.py:send():182] send: run
+2021-10-24 12:34:26,705 INFO    SenderThread:41600 [sender.py:_maybe_setup_resume():422] checking resume status for None/U-Net/da2mg4qf
+2021-10-24 12:34:28,556 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: run_start
+2021-10-24 12:34:28,558 INFO    SenderThread:41600 [dir_watcher.py:__init__():169] watching files in: D:\project\gitExchange\wall-unet\wandb\run-20211024_123422-da2mg4qf\files
+2021-10-24 12:34:28,558 INFO    SenderThread:41600 [sender.py:_start_run_threads():743] run started: da2mg4qf with start time 1635050062
+2021-10-24 12:34:28,558 DEBUG   SenderThread:41600 [sender.py:send():182] send: summary
+2021-10-24 12:34:28,558 INFO    SenderThread:41600 [sender.py:_save_file():873] saving file wandb-summary.json with policy end
+2021-10-24 12:34:28,569 DEBUG   HandlerThread:41600 [meta.py:__init__():40] meta init
+2021-10-24 12:34:28,569 DEBUG   HandlerThread:41600 [meta.py:__init__():54] meta init done
+2021-10-24 12:34:28,569 DEBUG   HandlerThread:41600 [meta.py:probe():211] probe
+2021-10-24 12:34:28,583 DEBUG   HandlerThread:41600 [meta.py:_setup_git():201] setup git
+2021-10-24 12:34:28,671 DEBUG   HandlerThread:41600 [meta.py:_setup_git():208] setup git done
+2021-10-24 12:34:28,671 DEBUG   HandlerThread:41600 [meta.py:_save_pip():58] save pip
+2021-10-24 12:34:28,671 DEBUG   HandlerThread:41600 [meta.py:_save_pip():72] save pip done
+2021-10-24 12:34:28,671 DEBUG   HandlerThread:41600 [meta.py:_save_conda():79] save conda
+2021-10-24 12:34:29,567 INFO    Thread-12 :41600 [dir_watcher.py:_on_file_created():217] file/dir created: D:\project\gitExchange\wall-unet\wandb\run-20211024_123422-da2mg4qf\files\conda-environment.yaml
+2021-10-24 12:34:29,567 INFO    Thread-12 :41600 [dir_watcher.py:_on_file_created():217] file/dir created: D:\project\gitExchange\wall-unet\wandb\run-20211024_123422-da2mg4qf\files\requirements.txt
+2021-10-24 12:34:29,568 INFO    Thread-12 :41600 [dir_watcher.py:_on_file_created():217] file/dir created: D:\project\gitExchange\wall-unet\wandb\run-20211024_123422-da2mg4qf\files\wandb-summary.json
+2021-10-24 12:34:29,949 DEBUG   HandlerThread:41600 [meta.py:_save_conda():87] save conda done
+2021-10-24 12:34:29,949 DEBUG   HandlerThread:41600 [meta.py:probe():249] probe done
+2021-10-24 12:34:29,952 DEBUG   SenderThread:41600 [sender.py:send():182] send: files
+2021-10-24 12:34:29,952 INFO    SenderThread:41600 [sender.py:_save_file():873] saving file wandb-metadata.json with policy now
+2021-10-24 12:34:29,962 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: stop_status
+2021-10-24 12:34:29,962 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: stop_status
+2021-10-24 12:34:30,574 INFO    Thread-12 :41600 [dir_watcher.py:_on_file_modified():230] file/dir modified: D:\project\gitExchange\wall-unet\wandb\run-20211024_123422-da2mg4qf\files\conda-environment.yaml
+2021-10-24 12:34:30,574 INFO    Thread-12 :41600 [dir_watcher.py:_on_file_created():217] file/dir created: D:\project\gitExchange\wall-unet\wandb\run-20211024_123422-da2mg4qf\files\wandb-metadata.json
+2021-10-24 12:34:30,574 INFO    Thread-12 :41600 [dir_watcher.py:_on_file_created():217] file/dir created: D:\project\gitExchange\wall-unet\wandb\run-20211024_123422-da2mg4qf\files\output.log
+2021-10-24 12:34:30,903 DEBUG   SenderThread:41600 [sender.py:send():182] send: config
+2021-10-24 12:34:31,634 INFO    Thread-17 :41600 [upload_job.py:push():137] Uploaded file C:\Users\DELL\AppData\Local\Temp\tmppvto3al2wandb\24jnylqa-wandb-metadata.json
+2021-10-24 12:34:32,579 INFO    Thread-12 :41600 [dir_watcher.py:_on_file_modified():230] file/dir modified: D:\project\gitExchange\wall-unet\wandb\run-20211024_123422-da2mg4qf\files\output.log
+2021-10-24 12:34:34,311 DEBUG   SenderThread:41600 [sender.py:send():182] send: history
+2021-10-24 12:34:34,311 DEBUG   SenderThread:41600 [sender.py:send():182] send: summary
+2021-10-24 12:34:34,312 INFO    SenderThread:41600 [sender.py:_save_file():873] saving file wandb-summary.json with policy end
+2021-10-24 12:34:34,350 DEBUG   SenderThread:41600 [sender.py:send():182] send: history
+2021-10-24 12:34:34,351 DEBUG   SenderThread:41600 [sender.py:send():182] send: summary
+2021-10-24 12:34:34,351 INFO    SenderThread:41600 [sender.py:_save_file():873] saving file wandb-summary.json with policy end
+2021-10-24 12:34:34,408 DEBUG   SenderThread:41600 [sender.py:send():182] send: history
+2021-10-24 12:34:34,408 DEBUG   SenderThread:41600 [sender.py:send():182] send: summary
+2021-10-24 12:34:34,409 INFO    SenderThread:41600 [sender.py:_save_file():873] saving file wandb-summary.json with policy end
+2021-10-24 12:34:34,442 DEBUG   SenderThread:41600 [sender.py:send():182] send: history
+2021-10-24 12:34:34,442 DEBUG   SenderThread:41600 [sender.py:send():182] send: summary
+2021-10-24 12:34:34,442 INFO    SenderThread:41600 [sender.py:_save_file():873] saving file wandb-summary.json with policy end
+2021-10-24 12:34:34,503 DEBUG   SenderThread:41600 [sender.py:send():182] send: history
+2021-10-24 12:34:34,504 DEBUG   SenderThread:41600 [sender.py:send():182] send: summary
+2021-10-24 12:34:34,504 INFO    SenderThread:41600 [sender.py:_save_file():873] saving file wandb-summary.json with policy end
+2021-10-24 12:34:34,540 DEBUG   SenderThread:41600 [sender.py:send():182] send: history
+2021-10-24 12:34:34,540 DEBUG   SenderThread:41600 [sender.py:send():182] send: summary
+2021-10-24 12:34:34,541 INFO    SenderThread:41600 [sender.py:_save_file():873] saving file wandb-summary.json with policy end
+2021-10-24 12:34:34,595 INFO    Thread-12 :41600 [dir_watcher.py:_on_file_modified():230] file/dir modified: D:\project\gitExchange\wall-unet\wandb\run-20211024_123422-da2mg4qf\files\output.log
+2021-10-24 12:34:34,595 INFO    Thread-12 :41600 [dir_watcher.py:_on_file_modified():230] file/dir modified: D:\project\gitExchange\wall-unet\wandb\run-20211024_123422-da2mg4qf\files\wandb-summary.json
+2021-10-24 12:34:34,604 DEBUG   SenderThread:41600 [sender.py:send():182] send: history
+2021-10-24 12:34:34,604 DEBUG   SenderThread:41600 [sender.py:send():182] send: summary
+2021-10-24 12:34:34,605 INFO    SenderThread:41600 [sender.py:_save_file():873] saving file wandb-summary.json with policy end
+2021-10-24 12:34:34,635 DEBUG   SenderThread:41600 [sender.py:send():182] send: history
+2021-10-24 12:34:34,635 DEBUG   SenderThread:41600 [sender.py:send():182] send: summary
+2021-10-24 12:34:34,635 INFO    SenderThread:41600 [sender.py:_save_file():873] saving file wandb-summary.json with policy end
+2021-10-24 12:34:34,707 DEBUG   SenderThread:41600 [sender.py:send():182] send: history
+2021-10-24 12:34:34,707 DEBUG   SenderThread:41600 [sender.py:send():182] send: summary
+2021-10-24 12:34:34,707 INFO    SenderThread:41600 [sender.py:_save_file():873] saving file wandb-summary.json with policy end
+2021-10-24 12:34:35,608 INFO    Thread-12 :41600 [dir_watcher.py:_on_file_modified():230] file/dir modified: D:\project\gitExchange\wall-unet\wandb\run-20211024_123422-da2mg4qf\files\wandb-summary.json
+2021-10-24 12:34:36,615 INFO    Thread-12 :41600 [dir_watcher.py:_on_file_modified():230] file/dir modified: D:\project\gitExchange\wall-unet\wandb\run-20211024_123422-da2mg4qf\files\output.log
+2021-10-24 12:34:36,664 DEBUG   SenderThread:41600 [sender.py:send():182] send: files
+2021-10-24 12:34:36,664 INFO    SenderThread:41600 [sender.py:_save_file():873] saving file media\images\images_9_33e282135fbc0dd1b6ab.png with policy now
+2021-10-24 12:34:36,665 DEBUG   SenderThread:41600 [sender.py:send():182] send: files
+2021-10-24 12:34:36,666 INFO    SenderThread:41600 [sender.py:_save_file():873] saving file media\images\true_9_1eb543f3814caa3ce190.png with policy now
+2021-10-24 12:34:36,667 DEBUG   SenderThread:41600 [sender.py:send():182] send: files
+2021-10-24 12:34:36,667 INFO    SenderThread:41600 [sender.py:_save_file():873] saving file media\images\pred_9_0ef002a3913a9f919f58.png with policy now
+2021-10-24 12:34:36,704 DEBUG   SenderThread:41600 [sender.py:send():182] send: history
+2021-10-24 12:34:36,721 DEBUG   SenderThread:41600 [sender.py:send():182] send: summary
+2021-10-24 12:34:36,739 INFO    SenderThread:41600 [sender.py:_save_file():873] saving file wandb-summary.json with policy end
+2021-10-24 12:34:37,101 DEBUG   SenderThread:41600 [sender.py:send():182] send: telemetry
+2021-10-24 12:34:37,101 DEBUG   SenderThread:41600 [sender.py:send():182] send: exit
+2021-10-24 12:34:37,102 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:37,102 INFO    SenderThread:41600 [sender.py:send_exit():291] handling exit code: 0
+2021-10-24 12:34:37,102 INFO    SenderThread:41600 [sender.py:send_exit():293] handling runtime: 8
+2021-10-24 12:34:37,112 INFO    SenderThread:41600 [sender.py:_save_file():873] saving file wandb-summary.json with policy end
+2021-10-24 12:34:37,112 INFO    SenderThread:41600 [sender.py:send_exit():303] send defer
+2021-10-24 12:34:37,112 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:37,113 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: defer
+2021-10-24 12:34:37,113 INFO    HandlerThread:41600 [handler.py:handle_request_defer():143] handle defer: 0
+2021-10-24 12:34:37,113 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: defer
+2021-10-24 12:34:37,113 INFO    SenderThread:41600 [sender.py:send_request_defer():312] handle sender defer: 0
+2021-10-24 12:34:37,113 INFO    SenderThread:41600 [sender.py:transition_state():316] send defer: 1
+2021-10-24 12:34:37,114 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: defer
+2021-10-24 12:34:37,114 INFO    HandlerThread:41600 [handler.py:handle_request_defer():143] handle defer: 1
+2021-10-24 12:34:37,242 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: defer
+2021-10-24 12:34:37,242 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:37,242 INFO    SenderThread:41600 [sender.py:send_request_defer():312] handle sender defer: 1
+2021-10-24 12:34:37,242 INFO    SenderThread:41600 [sender.py:transition_state():316] send defer: 2
+2021-10-24 12:34:37,243 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:37,243 DEBUG   SenderThread:41600 [sender.py:send():182] send: stats
+2021-10-24 12:34:37,243 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: defer
+2021-10-24 12:34:37,243 INFO    HandlerThread:41600 [handler.py:handle_request_defer():143] handle defer: 2
+2021-10-24 12:34:37,243 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: defer
+2021-10-24 12:34:37,243 INFO    SenderThread:41600 [sender.py:send_request_defer():312] handle sender defer: 2
+2021-10-24 12:34:37,243 INFO    SenderThread:41600 [sender.py:transition_state():316] send defer: 3
+2021-10-24 12:34:37,244 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: defer
+2021-10-24 12:34:37,244 INFO    HandlerThread:41600 [handler.py:handle_request_defer():143] handle defer: 3
+2021-10-24 12:34:37,252 DEBUG   SenderThread:41600 [sender.py:send():182] send: summary
+2021-10-24 12:34:37,267 INFO    SenderThread:41600 [sender.py:_save_file():873] saving file wandb-summary.json with policy end
+2021-10-24 12:34:37,267 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: defer
+2021-10-24 12:34:37,267 INFO    SenderThread:41600 [sender.py:send_request_defer():312] handle sender defer: 3
+2021-10-24 12:34:37,267 INFO    SenderThread:41600 [sender.py:transition_state():316] send defer: 4
+2021-10-24 12:34:37,268 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: defer
+2021-10-24 12:34:37,268 INFO    HandlerThread:41600 [handler.py:handle_request_defer():143] handle defer: 4
+2021-10-24 12:34:37,268 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: defer
+2021-10-24 12:34:37,268 INFO    SenderThread:41600 [sender.py:send_request_defer():312] handle sender defer: 4
+2021-10-24 12:34:37,356 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:37,620 INFO    Thread-12 :41600 [dir_watcher.py:_on_file_modified():230] file/dir modified: D:\project\gitExchange\wall-unet\wandb\run-20211024_123422-da2mg4qf\files\output.log
+2021-10-24 12:34:37,621 INFO    Thread-12 :41600 [dir_watcher.py:_on_file_modified():230] file/dir modified: D:\project\gitExchange\wall-unet\wandb\run-20211024_123422-da2mg4qf\files\wandb-summary.json
+2021-10-24 12:34:37,621 INFO    Thread-12 :41600 [dir_watcher.py:_on_file_created():217] file/dir created: D:\project\gitExchange\wall-unet\wandb\run-20211024_123422-da2mg4qf\files\media\images\true_9_1eb543f3814caa3ce190.png
+2021-10-24 12:34:37,621 INFO    Thread-12 :41600 [dir_watcher.py:_on_file_created():217] file/dir created: D:\project\gitExchange\wall-unet\wandb\run-20211024_123422-da2mg4qf\files\media\images\images_9_33e282135fbc0dd1b6ab.png
+2021-10-24 12:34:37,621 INFO    Thread-12 :41600 [dir_watcher.py:_on_file_created():217] file/dir created: D:\project\gitExchange\wall-unet\wandb\run-20211024_123422-da2mg4qf\files\media\images\pred_9_0ef002a3913a9f919f58.png
+2021-10-24 12:34:37,621 INFO    Thread-12 :41600 [dir_watcher.py:_on_file_created():217] file/dir created: D:\project\gitExchange\wall-unet\wandb\run-20211024_123422-da2mg4qf\files\media\images
+2021-10-24 12:34:37,621 INFO    Thread-12 :41600 [dir_watcher.py:_on_file_created():217] file/dir created: D:\project\gitExchange\wall-unet\wandb\run-20211024_123422-da2mg4qf\files\media
+2021-10-24 12:34:38,155 INFO    SenderThread:41600 [sender.py:transition_state():316] send defer: 5
+2021-10-24 12:34:38,155 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:38,155 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: defer
+2021-10-24 12:34:38,156 INFO    HandlerThread:41600 [handler.py:handle_request_defer():143] handle defer: 5
+2021-10-24 12:34:38,156 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: defer
+2021-10-24 12:34:38,156 INFO    SenderThread:41600 [sender.py:send_request_defer():312] handle sender defer: 5
+2021-10-24 12:34:38,156 INFO    SenderThread:41600 [dir_watcher.py:finish():283] shutting down directory watcher
+2021-10-24 12:34:38,268 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:38,291 INFO    Thread-18 :41600 [upload_job.py:push():137] Uploaded file C:\Users\DELL\AppData\Local\Temp\tmppvto3al2wandb\2wzawy9y-media/images/images_9_33e282135fbc0dd1b6ab.png
+2021-10-24 12:34:38,610 INFO    Thread-19 :41600 [upload_job.py:push():137] Uploaded file C:\Users\DELL\AppData\Local\Temp\tmppvto3al2wandb\xrf0n6kr-media/images/true_9_1eb543f3814caa3ce190.png
+2021-10-24 12:34:38,610 INFO    Thread-20 :41600 [upload_job.py:push():137] Uploaded file C:\Users\DELL\AppData\Local\Temp\tmppvto3al2wandb\37udep3s-media/images/pred_9_0ef002a3913a9f919f58.png
+2021-10-24 12:34:38,631 INFO    SenderThread:41600 [dir_watcher.py:_on_file_modified():230] file/dir modified: D:\project\gitExchange\wall-unet\wandb\run-20211024_123422-da2mg4qf\files\config.yaml
+2021-10-24 12:34:38,632 INFO    SenderThread:41600 [dir_watcher.py:finish():313] scan: D:\project\gitExchange\wall-unet\wandb\run-20211024_123422-da2mg4qf\files
+2021-10-24 12:34:38,632 INFO    SenderThread:41600 [dir_watcher.py:finish():327] scan save: D:\project\gitExchange\wall-unet\wandb\run-20211024_123422-da2mg4qf\files\conda-environment.yaml conda-environment.yaml
+2021-10-24 12:34:38,632 INFO    SenderThread:41600 [dir_watcher.py:finish():327] scan save: D:\project\gitExchange\wall-unet\wandb\run-20211024_123422-da2mg4qf\files\config.yaml config.yaml
+2021-10-24 12:34:38,633 INFO    SenderThread:41600 [dir_watcher.py:finish():327] scan save: D:\project\gitExchange\wall-unet\wandb\run-20211024_123422-da2mg4qf\files\output.log output.log
+2021-10-24 12:34:38,637 INFO    SenderThread:41600 [dir_watcher.py:finish():327] scan save: D:\project\gitExchange\wall-unet\wandb\run-20211024_123422-da2mg4qf\files\requirements.txt requirements.txt
+2021-10-24 12:34:38,638 INFO    SenderThread:41600 [dir_watcher.py:finish():327] scan save: D:\project\gitExchange\wall-unet\wandb\run-20211024_123422-da2mg4qf\files\wandb-metadata.json wandb-metadata.json
+2021-10-24 12:34:38,640 INFO    SenderThread:41600 [dir_watcher.py:finish():327] scan save: D:\project\gitExchange\wall-unet\wandb\run-20211024_123422-da2mg4qf\files\wandb-summary.json wandb-summary.json
+2021-10-24 12:34:38,643 INFO    SenderThread:41600 [dir_watcher.py:finish():327] scan save: D:\project\gitExchange\wall-unet\wandb\run-20211024_123422-da2mg4qf\files\media\images\images_9_33e282135fbc0dd1b6ab.png media\images\images_9_33e282135fbc0dd1b6ab.png
+2021-10-24 12:34:38,644 INFO    SenderThread:41600 [dir_watcher.py:finish():327] scan save: D:\project\gitExchange\wall-unet\wandb\run-20211024_123422-da2mg4qf\files\media\images\pred_9_0ef002a3913a9f919f58.png media\images\pred_9_0ef002a3913a9f919f58.png
+2021-10-24 12:34:38,645 INFO    SenderThread:41600 [dir_watcher.py:finish():327] scan save: D:\project\gitExchange\wall-unet\wandb\run-20211024_123422-da2mg4qf\files\media\images\true_9_1eb543f3814caa3ce190.png media\images\true_9_1eb543f3814caa3ce190.png
+2021-10-24 12:34:38,645 INFO    SenderThread:41600 [sender.py:transition_state():316] send defer: 6
+2021-10-24 12:34:38,646 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:38,647 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: defer
+2021-10-24 12:34:38,647 INFO    HandlerThread:41600 [handler.py:handle_request_defer():143] handle defer: 6
+2021-10-24 12:34:38,647 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: defer
+2021-10-24 12:34:38,647 INFO    SenderThread:41600 [sender.py:send_request_defer():312] handle sender defer: 6
+2021-10-24 12:34:38,647 INFO    SenderThread:41600 [file_pusher.py:finish():177] shutting down file pusher
+2021-10-24 12:34:38,755 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:38,755 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:38,865 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:38,866 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:38,974 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:38,974 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:39,084 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:39,084 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:39,191 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:39,191 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:39,297 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:39,297 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:39,402 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:39,402 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:39,507 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:39,507 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:39,615 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:39,615 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:39,721 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:39,721 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:39,830 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:39,830 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:39,936 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:39,936 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:40,044 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:40,044 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:40,154 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:40,154 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:40,266 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:40,267 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:40,376 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:40,376 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:40,485 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:40,485 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:40,596 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:40,596 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:40,707 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:40,707 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:40,812 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:40,812 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:40,917 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:40,917 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:41,022 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:41,022 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:41,131 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:41,131 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:41,237 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:41,237 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:41,324 INFO    Thread-22 :41600 [upload_job.py:push():137] Uploaded file D:\project\gitExchange\wall-unet\wandb\run-20211024_123422-da2mg4qf\files\config.yaml
+2021-10-24 12:34:41,342 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:41,342 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:41,447 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:41,448 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:41,491 INFO    Thread-21 :41600 [upload_job.py:push():137] Uploaded file D:\project\gitExchange\wall-unet\wandb\run-20211024_123422-da2mg4qf\files\conda-environment.yaml
+2021-10-24 12:34:41,492 INFO    Thread-24 :41600 [upload_job.py:push():137] Uploaded file D:\project\gitExchange\wall-unet\wandb\run-20211024_123422-da2mg4qf\files\requirements.txt
+2021-10-24 12:34:41,547 INFO    Thread-23 :41600 [upload_job.py:push():137] Uploaded file D:\project\gitExchange\wall-unet\wandb\run-20211024_123422-da2mg4qf\files\output.log
+2021-10-24 12:34:41,552 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:41,552 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:41,661 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:41,661 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:41,767 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:41,767 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:41,875 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:41,875 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:41,982 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:41,982 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:42,089 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:42,089 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:42,200 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:42,200 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:42,310 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:42,310 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:42,420 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:42,420 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:42,527 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:42,527 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:42,635 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:42,635 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:42,742 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:42,742 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:42,850 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:42,850 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:42,957 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:42,957 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:43,056 INFO    Thread-25 :41600 [upload_job.py:push():137] Uploaded file D:\project\gitExchange\wall-unet\wandb\run-20211024_123422-da2mg4qf\files\wandb-summary.json
+2021-10-24 12:34:43,066 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:43,067 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:43,176 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:43,176 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:43,270 INFO    Thread-11 :41600 [sender.py:transition_state():316] send defer: 7
+2021-10-24 12:34:43,270 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: defer
+2021-10-24 12:34:43,270 INFO    HandlerThread:41600 [handler.py:handle_request_defer():143] handle defer: 7
+2021-10-24 12:34:43,270 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: defer
+2021-10-24 12:34:43,271 INFO    SenderThread:41600 [sender.py:send_request_defer():312] handle sender defer: 7
+2021-10-24 12:34:43,287 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:43,564 INFO    SenderThread:41600 [sender.py:transition_state():316] send defer: 8
+2021-10-24 12:34:43,564 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:43,565 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: defer
+2021-10-24 12:34:43,565 INFO    HandlerThread:41600 [handler.py:handle_request_defer():143] handle defer: 8
+2021-10-24 12:34:43,565 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: defer
+2021-10-24 12:34:43,565 INFO    SenderThread:41600 [sender.py:send_request_defer():312] handle sender defer: 8
+2021-10-24 12:34:43,565 INFO    SenderThread:41600 [sender.py:transition_state():316] send defer: 9
+2021-10-24 12:34:43,565 DEBUG   SenderThread:41600 [sender.py:send():182] send: final
+2021-10-24 12:34:43,566 DEBUG   SenderThread:41600 [sender.py:send():182] send: footer
+2021-10-24 12:34:43,566 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: defer
+2021-10-24 12:34:43,566 INFO    HandlerThread:41600 [handler.py:handle_request_defer():143] handle defer: 9
+2021-10-24 12:34:43,566 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: defer
+2021-10-24 12:34:43,566 INFO    SenderThread:41600 [sender.py:send_request_defer():312] handle sender defer: 9
+2021-10-24 12:34:43,679 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: poll_exit
+2021-10-24 12:34:43,679 DEBUG   SenderThread:41600 [sender.py:send_request():196] send_request: poll_exit
+2021-10-24 12:34:43,679 INFO    SenderThread:41600 [file_pusher.py:join():182] waiting for file pusher
+2021-10-24 12:34:43,682 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: get_summary
+2021-10-24 12:34:43,696 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: sampled_history
+2021-10-24 12:34:43,697 DEBUG   HandlerThread:41600 [handler.py:handle_request():126] handle_request: shutdown
+2021-10-24 12:34:43,697 INFO    HandlerThread:41600 [handler.py:finish():683] shutting down handler
+2021-10-24 12:34:44,580 INFO    WriterThread:41600 [datastore.py:close():281] close: D:\project\gitExchange\wall-unet\wandb\run-20211024_123422-da2mg4qf\run-da2mg4qf.wandb
+2021-10-24 12:34:44,687 INFO    SenderThread:41600 [sender.py:finish():979] shutting down sender
+2021-10-24 12:34:44,687 INFO    SenderThread:41600 [file_pusher.py:finish():177] shutting down file pusher
+2021-10-24 12:34:44,687 INFO    SenderThread:41600 [file_pusher.py:join():182] waiting for file pusher
+2021-10-24 12:34:44,690 INFO    MainThread:41600 [internal.py:handle_exit():76] Internal process exited

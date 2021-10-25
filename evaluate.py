@@ -123,8 +123,8 @@ def evaluate(net, dataloader, device):
                                                                    ...]).sum()
                 num_pixels += torch.numel(mask_pred[:, 1:, ...])
 
-                # miou
-                miou += MIOU(mask_pred_onehot, mask_true)
+                # miou no bg
+                miou += MIOU(mask_pred_onehot[:,1:,...], mask_true[:,1:,...])
 
     net.train()
     return miou / num_val_batches, dice_softmax_nobg / num_val_batches, dice_softmax_bg / num_val_batches, dice_onehot_nobg / num_val_batches, dice_onehot_bg / num_val_batches, num_correct / num_pixels

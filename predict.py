@@ -114,9 +114,11 @@ if __name__ == '__main__':
     logging.info('Model loaded!')
 
     for i, filename in enumerate(in_files):
+        print('filename: ',filename)
         logging.info(f'\nPredicting image {filename} ...')
         # img = Image.open(filename)
         img=cv2.imread(filename)
+        print('img: ',img)
 
         mask = predict_img(net=net,
                            full_img=img,
