@@ -92,14 +92,13 @@ def mosaic_aug(images_dir,masks_dir):
     masks_path=Path(masks_dir)
 
     # get all imgs name
-    all_name_list=[splitext(file)[0] for file in listdir(images_path) if file.endswith('.png') or file.endswith('.jpg')]
+    all_name_list=[splitext(file)[0] for file in listdir(images_path) if (file.endswith('.png') or file.endswith('.jpg')) and not file.endswith('_mosaic_mask.png')]
     # print(all_name_list)
     no_aug=int(len(all_name_list)//4)
     mask_suffix='_mosaic_mask.png'
     img_suffix='_mosaic_img.png'
 
     for i in range(no_aug):
-
         # random load 4 imgs 
         img_id=random.sample(range(len(all_name_list)),4)
         # print(img_id)
@@ -116,7 +115,7 @@ def mosaic_aug(images_dir,masks_dir):
         x_mosaic=np.random.randint(int(weight_min*0.3),int(weight_min*0.7))
         y_mosaic=np.random.randint(int(hight_min*0.3),int(hight_min*0.7))
         # print('x_mosaic,y_mosaic: ',x_mosaic,y_mosaic)
-        
+
         # mosaic concatenate
         # 等比例缩放分割点
         x1_mosaic=int(x_mosaic*(img1.shape[1]/weight_min))
@@ -166,6 +165,6 @@ def mosaic_aug(images_dir,masks_dir):
 
 
 if __name__ == '__main__':
-    images_dir='../../../FloorPlan/2-Dataset/publicdata/wallsegmentation/CVC-FP/ImagesGT/'
-    masks_dir='../../../FloorPlan/2-Dataset/publicdata/wallsegmentation/CVC-FP/masks/'
+    images_dir='../../../../../data/floorplan/CVC-FP/'
+    masks_dir='../../../../../data/floorplan/CVC-FP/masks/'
     mosaic_aug(images_dir,masks_dir)

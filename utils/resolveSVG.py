@@ -31,7 +31,28 @@ def svg2label(svgFileName, classNames=['Background', 'Wall']):
             cv2.fillConvexPoly(maskLabel, polygon_points_np, color=classID)
     return maskLabel
 
+def svg2mask(img_dir,mask_dir):
+    svgFileNames = []
+    fileNames = os.listdir(img_dir)
+
+    # get all svg file name
+    for fileName in fileNames:
+        if os.path.splitext(fileName)[-1] == '.svg':
+            svgFileNames.append(fileName)
+    
+    for svgFileName in svgFileNames:
+        mask=svg2label(svgFileName)*255
+        mask=mask.astype(np.uint8)
+        mask_dir=mask_dir+svgFileName.split('.')[0]+'.png'
+        cv2.imwrite(mask_dir,mask)
+
+
 
 def mask2onehot(mask):
     onehot = mask
     return onehot
+
+if __name__=='__main__':
+    img_dir='../../../../../data/floorplan/CVC-FP/'
+    mask_dir='../../../../../data/floorplan/CVC-FP/masks/'
+    svg2mask(img_dir,mask_dir)
