@@ -11,6 +11,7 @@ from torch.utils.data import Dataset
 import cv2
 from torchvision.transforms import transforms
 from utils.resolveSVG import svg2label
+from utils.data_augmentation import img_aug, img_mask_aug
 
 CVC_FP_className_list = [
     'Background', 'Door', 'Parking', 'Room', 'Separation', 'Text', 'Wall',
@@ -69,22 +70,13 @@ class BasicDataset(Dataset):
             # he=255-he
             # pil_img=cv2.merge([he,class1,class2])
 
-        # gaussian filter(or 双边滤波)
-        if is_transforms and np.random.rand()>0.5:
-            img_ndarray=cv2.GaussianBlur(img_ndarray,(3,3),0) 
+        # img augmentation
+        if is_transforms :
+            img_ndarray = img_aug(img_ndarray)
+        else:
+            img_ndarray = img_ndarray / 255.0
         
-        # contrast-对比度
-        if is_transforms and np.random.rand()>0.5:
-            contrast=np.random.randint(-50,50)
-            img_ndarray=img_ndarray*(contrast/127+1)-contrast
-        
-        img_ndarray = img_ndarray / 255.0
-        
-        if is_transforms:
-            # gaussian noise-高斯噪音
-            noise=np.random.normal(0,0.01**0.5,img_ndarray.shape)
-            img_ndarray+=noise
-            img_ndarray=np.clip(img_ndarray,0,1)
+  
 
         # print('data.shape: ',img_ndarray.shape)
         # img_ndarray = img_ndarray.transpose((2, 0, 1))
@@ -113,6 +105,10 @@ class BasicDataset(Dataset):
             # return Image.open(filename)
 
     def __getitem__(self, idx):
+        # print()
+        # print('*****************************')
+        # print('__getitem__ is called')
+        # print('*****************************')
         name = self.ids[idx]
         mask_file = list(self.masks_dir.glob(name + self.mask_suffix + '*'))
         img_file = list(self.images_dir.glob(name + '.*'))
@@ -154,41 +150,7 @@ class BasicDataset(Dataset):
         # Augmentation 
              
         if self.is_transforms: 
-            # print('Augmentation')
-            # print()
-            # para transforms 
-            h,w,c=img.shape
-            img_shape=(w,h)
-            # rotation-旋转——+/-10°
-            if np.random.rand()>0.5:
-                # print('rotation')
-                angle=np.random.uniform(-10,10)
-                center=(w//2,h//2)
-                M=cv2.getRotationMatrix2D(center,angle,1)
-                img=cv2.warpAffine(img,M,img_shape)
-                mask=cv2.warpAffine(mask,M,img_shape)
-            # shift-平移
-            if np.random.rand()>0.5:
-                # print('shift')
-                x_shift=np.random.randint(-int(w*0.2),int(w*0.2))
-                y_shift=np.random.randint(-int(h*0.2),int(h*0.2))
-                M=np.float32([[1,0,x_shift],[0,1,y_shift]])
-                img=cv2.warpAffine(img,M,img_shape)
-                mask=cv2.warpAffine(mask,M,img_shape)
-            # inversion -反转:1-水平翻转;0-	垂直翻转;-1-水平垂直翻转
-            flip_modes=['水平垂直','垂直','水平']
-            for flip_mode in range(len(flip_modes)):
-                if np.random.rand()>0.5:
-                    # print(flip_modes[flip_mode])
-                    img=cv2.flip(img, flip_mode-1)
-                    mask=cv2.flip(mask, flip_mode-1)
-            # cropping - 剪裁 - 裁剪坐标为[y0:y1, x0:x1]
-            if np.random.rand()>0.5:
-                # print('cropping')
-                x_crop=np.random.randint(int(w*0.3))
-                y_crop=np.random.randint(int(h*0.3))
-                img=img[y_crop:y_crop+int(h*0.7),x_crop:x_crop+int(w*0.7)]
-                mask=mask[y_crop:y_crop+int(h*0.7),x_crop:x_crop+int(w*0.7)]
+            img,mask=img_mask_aug(img,mask)
         
         # print()
         # print('***********************************************')

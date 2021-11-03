@@ -20,7 +20,9 @@ def predict_img(net,
                 scale_factor=1,
                 out_threshold=0.5):
     net.eval()
-    img = torch.from_numpy(BasicDataset.preprocess(full_img, scale_factor, is_mask=False))
+    img = BasicDataset.preprocess(full_img, scale_factor, is_mask=False,is_transforms=False)
+    img = img.transpose((2, 0, 1))
+    img = torch.from_numpy(img)
     img = img.unsqueeze(0)
     img = img.to(device=device, dtype=torch.float32)
     print('input img shape: ',img.shape)

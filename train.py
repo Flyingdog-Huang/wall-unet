@@ -50,6 +50,9 @@ def train_net(net,
               img_scale: float = 0.5,
               amp: bool = False):
     # 1. Create dataset
+    # print()
+    # print('-------------------------------------------------------')
+    # print('Create dataset')
     is_tf= True # False
     try:
         dataset = CarvanaDataset(dir_img, dir_mask, img_scale,is_tf)
@@ -58,12 +61,18 @@ def train_net(net,
     # dataset=PimgDataset(dir_img,dir_pimg,dir_mask,img_scale)
 
     # 2. Split into train / validation partitions
+    # print()
+    # print('-------------------------------------------------------')
+    # print('Split into train / validation partitions')
     n_val = int(len(dataset) * val_percent)
     n_train = len(dataset) - n_val
     train_set, val_set = random_split(
         dataset, [n_train, n_val], generator=torch.Generator().manual_seed(0))
 
     # 3. Create data loaders
+    # print()
+    # print('-------------------------------------------------------')
+    # print('Create data loaders')
     loader_args = dict(batch_size=batch_size, num_workers=4, pin_memory=True)
     train_loader = DataLoader(train_set, shuffle=True, **loader_args)
     val_loader = DataLoader(val_set,
@@ -109,13 +118,22 @@ def train_net(net,
     global_step = 0
 
     # 5. Begin training
+    # print()
+    # print('-------------------------------------------------------')
+    # print('Begin training')
     for epoch in range(epochs):
+        # print()
+        # print('-------------------------------------------------------')
+        # print('for epoch ')
         net.train()
         epoch_loss = 0
         with tqdm(total=n_train,
                   desc=f'Epoch {epoch + 1}/{epochs}',
                   unit='img') as pbar:
             for batch in train_loader:
+                # print()
+                # print('-------------------------------------------------------')
+                # print('for batch ')
                 images = batch['image']
                 true_masks = batch['mask']
 
@@ -126,11 +144,40 @@ def train_net(net,
                 # print('images.shape: ',images.shape)
 
                 # warm up LR
-                if global_step > 5000:
+                start_LR=0.000001
+                end_LR=0.0001
+                warmup_step=50
+                if global_step < warmup_step:
+                    now_LR=start_LR+global_step*(end_LR-start_LR)/warmup_step
+                    print()
+                    print('-------------------------------------------------------')
+                    print('global_step: ',global_step)
+                    print('now_LR: ',now_LR)
                     optimizer = optim.RMSprop(net.parameters(),
-                                              lr=0.000001,
+                                              lr=now_LR,
                                               weight_decay=1e-8,
                                               momentum=0.9)
+
+                # adjust LR
+                reduce_step=55
+                if global_step>reduce_step:
+                    # 余弦退火调整学习率
+                    cos_a=np.cos((global_step-reduce_step)*np.pi/300)
+                    now_LR=end_LR*cos_a
+                    print()
+                    print('-------------------------------------------------------')
+                    print('global_step: ',global_step)
+                    print('cos_a: ',cos_a)
+                    print('now_LR: ',now_LR)
+                    optimizer = optim.RMSprop(net.parameters(),
+                                              lr=now_LR,
+                                              weight_decay=1e-8,
+                                              momentum=0.9)
+                # if global_step > 5000:
+                #     optimizer = optim.RMSprop(net.parameters(),
+                #                               lr=0.000001,
+                #                               weight_decay=1e-8,
+                #                               momentum=0.9)
                     # if global_step>2000:
                     #     optimizer = optim.RMSprop(net.parameters(), lr=0.0000001, weight_decay=1e-8, momentum=0.9)
 
@@ -250,9 +297,13 @@ def train_net(net,
                 pbar.set_postfix(**{'loss (batch)':
                                     loss.item()})  # change loss
 
-                # Evaluation round
+                # Evaluation round    
+                
                 super_para = 1  # 10
                 if global_step % (n_train // (super_para * batch_size)) == 0:
+                    # print()            
+                    # print('-------------------------------------------------------')
+                    # print('Evaluation round ')
                     histograms = {}
                     for tag, value in net.named_parameters():
                         tag = tag.replace('/', '.')
@@ -279,8 +330,7 @@ def train_net(net,
                         'MIOU Evaluation':
                         miou_eva,
                         # 'Dice onehot bg': dice_onehot_bg,
-                        'PA':
-                        acc,
+                        # 'PA': acc,
                         'images':
                         wandb.Image(images[0].cpu()),
                         'masks': {
@@ -301,7 +351,7 @@ def train_net(net,
         torch.save(
             net.state_dict(),
             str(dir_checkpoint /
-                'checkpoint_epoch{}_CVC_CEdice.pth'.format(epochs)))
+                'checkpoint_epoch{}_test_LRcos.pth'.format(epochs)))
         # logging.info(f'Checkpoint {epoch + 1} saved!')
         logging.info(f'Checkpoint {epochs} saved!')
 
@@ -313,7 +363,7 @@ def get_args():
                         '-e',
                         metavar='E',
                         type=int,
-                        default=1, # 100
+                        default=22, # 100
                         help='Number of epochs')
     parser.add_argument('--batch-size',
                         '-b',
