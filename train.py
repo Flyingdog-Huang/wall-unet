@@ -127,9 +127,7 @@ def train_net(net,
         # print('for epoch ')
         net.train()
         epoch_loss = 0
-        with tqdm(total=n_train,
-                  desc=f'Epoch {epoch + 1}/{epochs}',
-                  unit='img') as pbar:
+        with tqdm(total=n_train, desc=f'Epoch {epoch + 1}/{epochs}',unit='img') as pbar:
             for batch in train_loader:
                 # print()
                 # print('-------------------------------------------------------')
@@ -153,10 +151,7 @@ def train_net(net,
                     print('-------------------------------------------------------')
                     print('global_step: ',global_step)
                     print('now_LR: ',now_LR)
-                    optimizer = optim.RMSprop(net.parameters(),
-                                              lr=now_LR,
-                                              weight_decay=1e-8,
-                                              momentum=0.9)
+                    optimizer = optim.RMSprop(net.parameters(), lr=now_LR, weight_decay=1e-8,  momentum=0.9)
 
                 # adjust LR
                 reduce_step=55
@@ -169,10 +164,7 @@ def train_net(net,
                     print('global_step: ',global_step)
                     print('cos_a: ',cos_a)
                     print('now_LR: ',now_LR)
-                    optimizer = optim.RMSprop(net.parameters(),
-                                              lr=now_LR,
-                                              weight_decay=1e-8,
-                                              momentum=0.9)
+                    optimizer = optim.RMSprop(net.parameters(), lr=now_LR,  weight_decay=1e-8, momentum=0.9)
                 # if global_step > 5000:
                 #     optimizer = optim.RMSprop(net.parameters(),
                 #                               lr=0.000001,
