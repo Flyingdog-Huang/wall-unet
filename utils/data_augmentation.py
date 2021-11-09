@@ -70,7 +70,7 @@ def mosaic_load(img_id,all_name_list,images_path,masks_path):
     for id in img_id:
         name=all_name_list[id]
         img_name=list(images_path.glob(name + '.*'))[0]
-        mask_name=list(masks_path.glob(name + '_gt_*'))[0]
+        mask_name=list(masks_path.glob(name + '_mask*'))[0]
         img=cv2.imread(str(img_name))
         mask=cv2.imread(str(mask_name))
         # data aug
@@ -92,11 +92,11 @@ def mosaic_aug(images_dir,masks_dir):
     masks_path=Path(masks_dir)
 
     # get all imgs name
-    all_name_list=[splitext(file)[0] for file in listdir(images_path) if (file.endswith('.png') or file.endswith('.jpg')) and not file.endswith('_mosaic_mask.png')]
+    all_name_list=[splitext(file)[0] for file in listdir(images_path) if (file.endswith('.png') or file.endswith('.jpg')) and not file.endswith('_mosaic.png')]
     # print(all_name_list)
     no_aug=int(len(all_name_list)//4)
     mask_suffix='_mosaic_mask.png'
-    img_suffix='_mosaic_img.png'
+    img_suffix='_mosaic.png'
 
     for i in range(no_aug):
         # random load 4 imgs 

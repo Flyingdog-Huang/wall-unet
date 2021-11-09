@@ -28,7 +28,7 @@ class BasicDataset(Dataset):
         self.mask_suffix = mask_suffix
         self.is_transforms=is_transforms
 
-        self.ids = [splitext(file)[0] for file in listdir(images_dir) if not file.startswith('.') and not file.endswith('.svg')]
+        self.ids = [splitext(file)[0] for file in listdir(images_dir) if file.endswith('.png') or file.endswith('.jpg')]
         if not self.ids:
             raise RuntimeError(f'No input file found in {images_dir}, make sure you put your images there')
         logging.info(f'Creating dataset with {len(self.ids)} examples')
@@ -63,6 +63,7 @@ class BasicDataset(Dataset):
             # img_ndarray = img_ndarray[:,:,np.newaxis]
             # print('mask.shape: ',img_ndarray.shape)
             # img_ndarray = img_ndarray.transpose((2, 0, 1))
+            img_ndarray=img_ndarray[0]/255
             return img_ndarray
             # self-label by labelme:3-2(no bg)
             # backg,class1,class2=cv2.split(pil_img)
@@ -172,7 +173,7 @@ class BasicDataset(Dataset):
 
 class CarvanaDataset(BasicDataset):
     def __init__(self, images_dir, masks_dir, scale=1, is_transforms=False):
-        super().__init__(images_dir, masks_dir, scale, is_transforms, mask_suffix='_gt_')
+        super().__init__(images_dir, masks_dir, scale, is_transforms, mask_suffix='_mask')
         # super().__init__(images_dir, masks_dir, scale, mask_suffix='_mask')
 
 

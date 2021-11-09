@@ -35,7 +35,7 @@ dir_mask = Path('../data/CVC-FP/')
 # dir_mask = Path('../../../../data/floorplan/pimg/masks/')
 
 # dir_img = Path('../../../../data/floorplan/CVC-FP/')
-# dir_mask = Path('../../../../data/floorplan/CVC-FP/')
+# dir_mask = Path('../../../../data/floorplan/CVC-FP/masks/')
 
 dir_checkpoint = Path('../checkpoints/')
 
@@ -291,7 +291,7 @@ def train_net(net,
 
                 # Evaluation round    
                 
-                super_para = 1  # 10
+                super_para = 10
                 if global_step % (n_train // (super_para * batch_size)) == 0:
                     # print()            
                     # print('-------------------------------------------------------')

@@ -4,9 +4,9 @@ import cv2
 import numpy as np
 
 
-def svg2label(svgFileName, classNames=['Background', 'Wall']):
+def svg2label(svgFileName,img_dir, classNames=['Background', 'Wall']):
     # mask initialization
-    dom = minidom.parse(svgFileName)
+    dom = minidom.parse(img_dir+svgFileName)
     width = dom.getElementsByTagName('width')[0].firstChild.data
     width = int(width)
     height = dom.getElementsByTagName('height')[0].firstChild.data
@@ -41,10 +41,10 @@ def svg2mask(img_dir,mask_dir):
             svgFileNames.append(fileName)
     
     for svgFileName in svgFileNames:
-        mask=svg2label(svgFileName)*255
+        mask=svg2label(svgFileName,img_dir)*255
         mask=mask.astype(np.uint8)
-        mask_dir=mask_dir+svgFileName.split('.')[0]+'.png'
-        cv2.imwrite(mask_dir,mask)
+        mask_name=mask_dir+svgFileName.split('_gt_')[0]+'_mask.png'
+        cv2.imwrite(mask_name,mask)
 
 
 
