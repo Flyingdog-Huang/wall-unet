@@ -63,7 +63,7 @@ class BasicDataset(Dataset):
             # img_ndarray = img_ndarray[:,:,np.newaxis]
             # print('mask.shape: ',img_ndarray.shape)
             # img_ndarray = img_ndarray.transpose((2, 0, 1))
-            img_ndarray=img_ndarray[0]/255
+            img_ndarray=img_ndarray[:,:,0]/255
             return img_ndarray
             # self-label by labelme:3-2(no bg)
             # backg,class1,class2=cv2.split(pil_img)
