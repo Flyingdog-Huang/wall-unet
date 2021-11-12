@@ -25,8 +25,7 @@ class BasicBlock(nn.Module):
     
     def forward(self,x):
         fx=self.Func(x)
-        if self.in_channels != self.out_channels:
-            x=self.Identity(x)
+        x=self.Identity(x)
         y=fx+x
         return nn.ReLU(inplace=True)(y)
 
@@ -55,8 +54,7 @@ class BottleNeck(nn.Module):
 
     def forward(self, x):
         fx=self.Func(x)
-        if self.in_channels != self.out_channels:
-            x=self.Identity(x)
+        x=self.Identity(x)
         y=fx+x
         return nn.ReLU(inplace=True)(y)
 

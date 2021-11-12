@@ -13,13 +13,20 @@ class UnetResnet50(nn.Module):
         
         self.layer1=MakeLayerBottleneck(64,256,64,num_bottlenecks=3)
         self.layer2=MakeLayerBottleneck(256,512,128,num_bottlenecks=4)
+        # layer 3
+        # self.layer3=MakeLayerBottleneck(512,1024//2,256,num_bottlenecks=6)
+        # layer 4
         self.layer3=MakeLayerBottleneck(512,1024,256,num_bottlenecks=6)
         self.layer4=MakeLayerBottleneck(1024,2048//2,512,num_bottlenecks=3)
 
+        # layer 4
         self.decoder1=DecoderBlock(2048, 1024//2)
         self.decoder2=DecoderBlock(1024,512//2)
+        # layer 3
+        # self.decoder2=DecoderBlock(1024,512//2)
         self.decoder3=DecoderBlock(512,128//2)
         self.decoder4=DecoderBlock(128,64)
+        self.decoder5=DecoderBlock(128,64)
 
         self.output=OutConv(64,n_classes)
 
@@ -34,7 +41,7 @@ class UnetResnet50(nn.Module):
         x=self.decoder2(x,x3)
         x=self.decoder3(x,x2)
         x=self.decoder4(x,x1_down)
-        x=self.decoder4(x,x1)
+        x=self.decoder5(x,x1)
         x=self.output(x)
         return x
 

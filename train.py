@@ -15,7 +15,7 @@ from tqdm import tqdm
 from utils.data_loading import BasicDataset, CarvanaDataset, PimgDataset
 from utils.dice_score import dice_loss
 from evaluate import evaluate
-from unet import UNet
+from unet import UNet, UnetResnet50
 
 from utils.miou import IOU, MIOU
 import numpy as np
@@ -66,8 +66,7 @@ def train_net(net,
     # print('Split into train / validation partitions')
     n_val = int(len(dataset) * val_percent)
     n_train = len(dataset) - n_val
-    train_set, val_set = random_split(
-        dataset, [n_train, n_val], generator=torch.Generator().manual_seed(0))
+    train_set, val_set = random_split(dataset, [n_train, n_val], generator=torch.Generator().manual_seed(0))
 
     # 3. Create data loaders
     # print()
@@ -75,10 +74,7 @@ def train_net(net,
     # print('Create data loaders')
     loader_args = dict(batch_size=batch_size, num_workers=4, pin_memory=True)
     train_loader = DataLoader(train_set, shuffle=True, **loader_args)
-    val_loader = DataLoader(val_set,
-                            shuffle=False,
-                            drop_last=True,
-                            **loader_args)
+    val_loader = DataLoader(val_set, shuffle=False, drop_last=True, **loader_args)
 
     # (Initialize logging)
     experiment = wandb.init(project='U-Net', resume='allow', anonymous='must')
@@ -104,12 +100,8 @@ def train_net(net,
     ''')
 
     # 4. Set up the optimizer, the loss, the learning rate scheduler and the loss scaling for AMP
-    optimizer = optim.RMSprop(net.parameters(),
-                              lr=learning_rate,
-                              weight_decay=1e-8,
-                              momentum=0.9)  # momentum=0.99
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, 'max', patience=100)  # goal: maximize Dice score, 2
+    optimizer = optim.RMSprop(net.parameters(), lr=learning_rate, weight_decay=1e-8, momentum=0.9)  # momentum=0.99
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=100)  # goal: maximize Dice score, 2
     grad_scaler = torch.cuda.amp.GradScaler(enabled=amp)
     # loss func
     CE_criterion = nn.CrossEntropyLoss()
@@ -289,8 +281,7 @@ def train_net(net,
                     # 'step': global_step,
                     # 'epoch': epoch
                 })
-                pbar.set_postfix(**{'loss (batch)':
-                                    loss.item()})  # change loss
+                pbar.set_postfix(**{'loss (batch)': loss.item()})  # change loss
 
                 # Evaluation round    
                 super_para = 10
@@ -301,10 +292,8 @@ def train_net(net,
                     histograms = {}
                     for tag, value in net.named_parameters():
                         tag = tag.replace('/', '.')
-                        histograms['Weights/' + tag] = wandb.Histogram(
-                            value.data.cpu())
-                        histograms['Gradients/' + tag] = wandb.Histogram(
-                            value.grad.data.cpu())
+                        histograms['Weights/' + tag] = wandb.Histogram(value.data.cpu())
+                        histograms['Gradients/' + tag] = wandb.Histogram(value.grad.data.cpu())
 
                     # val_score,val_score_soft,acc = evaluate(net, val_loader, device)
                     miou_eva, dice_softmax_nobg, dice_softmax_bg, dice_onehot_nobg, dice_onehot_bg, acc = evaluate(
@@ -331,13 +320,14 @@ def train_net(net,
                         # 'epoch': epoch,
                         **histograms
                     })
+    
     # just save the last one
     if save_checkpoint:
         Path(dir_checkpoint).mkdir(parents=True, exist_ok=True)
         torch.save(
             net.state_dict(),
             str(dir_checkpoint /
-                'checkpoint_epoch{}_test_LRcos.pth'.format(epochs)))
+                'checkpoint_epoch{}_mosaic_LR5_resnet.pth'.format(epochs)))
         # logging.info(f'Checkpoint {epoch + 1} saved!')
         logging.info(f'Checkpoint {epochs} saved!')
 
@@ -381,13 +371,15 @@ if __name__ == '__main__':
     # Change here to adapt to your data
     # n_channels=3 for RGB images
     # n_classes is the number of probabilities you want to get per pixel
-    net = UNet(n_channels=3, n_classes=2, bilinear=True)
+
+    # net = UNet(n_channels=3, n_classes=2, bilinear=True)
+    net = UnetResnet50(n_channels=3, n_classes=2)
 
     logging.info(
         f'Network:\n'
         f'\t{net.n_channels} input channels\n'
-        f'\t{net.n_classes} output channels (classes)\n'
-        f'\t{"Bilinear" if net.bilinear else "Transposed conv"} upscaling')
+        f'\t{net.n_classes} output channels (classes)\n')
+        # f'\t{"Bilinear" if net.bilinear else "Transposed conv"} upscaling'
 
     if args.load:
         net.load_state_dict(torch.load(args.load, map_location=device))
