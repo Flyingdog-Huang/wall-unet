@@ -148,6 +148,9 @@ def train_net(net,
                 # adjust LR
                 reduce_step=55
                 if global_step>reduce_step:
+                    # 直接衰减
+                    # now_LR=0.000001
+                    # optimizer = optim.RMSprop(net.parameters(), lr=now_LR,  weight_decay=1e-8, momentum=0.9)
                     # 余弦退火调整学习率
                     cos_a=np.cos((global_step-reduce_step)*np.pi/300)
                     now_LR=end_LR*cos_a
@@ -364,7 +367,7 @@ if __name__ == '__main__':
     args = get_args()
 
     logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
-    cuda_name = 'cuda'# 'cuda:1'
+    cuda_name = 'cuda' # 'cuda:1'
     device = torch.device(cuda_name if torch.cuda.is_available() else 'cpu')
     logging.info(f'Using device {device}')
 
