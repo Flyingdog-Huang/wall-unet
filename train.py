@@ -24,8 +24,8 @@ from torchvision.transforms import transforms
 # dir_img = Path('./data/imgs/')
 # dir_mask = Path('./data/masks/')
 
-dir_img = Path('../data/CVC-FP/')
-dir_mask = Path('../data/CVC-FP/')
+# dir_img = Path('../data/CVC-FP/')
+# dir_mask = Path('../data/CVC-FP/')
 
 # dir_img = Path('../../../../data/floorplan/selflabel/imgs/')
 # dir_mask = Path('../../../../data/floorplan/selflabel/masks/')
@@ -36,6 +36,12 @@ dir_mask = Path('../data/CVC-FP/')
 
 # dir_img = Path('../../../../data/floorplan/CVC-FP/')
 # dir_mask = Path('../../../../data/floorplan/CVC-FP/masks/')
+
+# dir_img = Path('../../../../data/floorplan/r3d_cvc/imgs/')
+# dir_mask = Path('../../../../data/floorplan/r3d_cvc/masks/')
+
+dir_img = Path('../../../../data/floorplan/car/imgs/train/')
+dir_mask = Path('../../../../data/floorplan/car/imgs/masks/')
 
 dir_checkpoint = Path('../checkpoints/')
 

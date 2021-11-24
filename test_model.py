@@ -8,6 +8,6 @@ if __name__ == '__main__':
     # model=UNet(3,2).cuda(device=device)
     # model= UnetResnet50(3,2).cuda(device=device)
     model= hrnet48(3,2).cuda(device=device)
-    img=torch.rand((2,3,1024,1024)).cuda(device=device)
+    img=torch.rand((1,3,256,256)).cuda(device=device)
     mask=model(img)
     print(mask.shape)

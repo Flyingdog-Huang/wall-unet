@@ -12,10 +12,12 @@ class hrnet48(nn.Module):
         self.n_classes=n_classes
 
         # keep layer
-        self.keeplayer=ResBlock(n_channels,32)
+        # self.keeplayer=ResBlock(n_channels,32)
+        # keep size
+        self.keeplayer=ResBlock(n_channels,64)
 
         #  stem stage
-        self.stemStage=StemStage(n_channels,64)
+        # self.stemStage=StemStage(n_channels,64)
 
         # stage 1
         self.stage1layer1=LayerBlock(64,64)
@@ -78,19 +80,21 @@ class hrnet48(nn.Module):
         self.conTrans4_1=UpBlock(512, 512,num=3)
 
         # hrfeature up to img size
-        self.keep_up=UpBlock(64+128+256+512,64+128+256+512,num=2)
+        # self.keep_up=UpBlock(64+128+256+512,64+128+256+512,num=2)
 
         # fusion connect
         self.fusion_cat=FusionBlock(is_add=False)
 
         # out conv1*1
-        self.out=nn.Conv2d(32+64+128+512+256,n_classes,kernel_size=1)
+        # self.out=nn.Conv2d(32+64+128+512+256,n_classes,kernel_size=1)
+        # keep size
+        self.out=nn.Conv2d(64+128+512+256,n_classes,kernel_size=1)
 
     def forward(self,x):
         # keep layer
         x_keep=self.keeplayer(x)
         #  stem stage
-        x1_stem=self.stemStage(x)
+        x1_stem= x_keep  # self.stemStage(x)
         # stage 1
         x1_s1=self.stage1layer1(x1_stem)
         # make branch layer2
@@ -150,7 +154,9 @@ class hrnet48(nn.Module):
         x1_hrnet=self.fusion_cat(self.conTrans3_1(x3_fus),x1_hrnet)
         x1_hrnet=self.fusion_cat(self.conTrans4_1(x4_fus),x1_hrnet)
         # connect stem
-        x_fus=self.fusion_cat(self.keep_up(x1_hrnet),x_keep)
+        # x_fus=self.fusion_cat(self.keep_up(x1_hrnet),x_keep)
         # change channel
-        y=self.out(x_fus)
+        # y=self.out(x_fus)
+        # keep size
+        y=self.out(x1_hrnet)
         return y
