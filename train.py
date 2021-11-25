@@ -15,7 +15,7 @@ from tqdm import tqdm
 from utils.data_loading import BasicDataset, CarvanaDataset, PimgDataset
 from utils.dice_score import dice_loss
 from evaluate import evaluate
-from unet import UNet, UnetResnet50
+from unet import UNet, UnetResnet50, hrnet48, Unet_p1
 
 from utils.miou import IOU, MIOU
 import numpy as np

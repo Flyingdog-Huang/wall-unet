@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 # BatchNorm2D 动量参数
-BN_MOMENTUM = 0.2
+BN_MOMENTUM = 0.1
 
 # 占位符
 class PlaceHolder(nn.Module):

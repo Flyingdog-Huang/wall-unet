@@ -1,4 +1,4 @@
-from unet import UNet, UnetResnet50, hrnet48
+from unet import UNet, UnetResnet50, hrnet48, Unet_p1
 import torch
 
 if __name__ == '__main__':
