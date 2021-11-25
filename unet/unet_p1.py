@@ -13,7 +13,7 @@ class Unet_p1(nn.Module):
         self.down1 = DownConv(64, 128)
         self.down2 = DownConv(128, 256)
         self.down3 = DownConv(256, 512)
-        self.down4 = Down(512, 1024 // self.factor)
+        self.down4 = DownConv(512, 1024 // self.factor)
         self.up1 = UpRes(1024, 512 // self.factor)
         self.up2 = UpRes(512, 256 // self.factor)
         self.up3 = UpRes(256, 128 // self.factor)
