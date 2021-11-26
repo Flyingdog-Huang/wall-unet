@@ -1,4 +1,4 @@
-from unet import UNet, UnetResnet50, hrnet48, Unet_p1
+from unet import UNet, UnetResnet50, hrnet48, Unet_p1, hrnet48_p1
 import torch
 
 if __name__ == '__main__':
@@ -8,7 +8,10 @@ if __name__ == '__main__':
     # model=UNet(3,2).cuda(device=device)
     # model= UnetResnet50(3,2).cuda(device=device)
     # model= hrnet48(3,2).cuda(device=device)
-    model= Unet_p1(3,2).cuda(device=device)
-    img=torch.rand((1,3,256*2,256*2)).cuda(device=device)
+    # model= Unet_p1(3,2).cuda(device=device)
+    model= hrnet48_p1(3,2).cuda(device=device)
+
+
+    img=torch.rand((1,3,256*1,256*1)).cuda(device=device)
     mask=model(img)
     print(mask.shape)

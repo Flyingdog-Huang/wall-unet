@@ -15,7 +15,7 @@ from tqdm import tqdm
 from utils.data_loading import BasicDataset, CarvanaDataset, PimgDataset
 from utils.dice_score import dice_loss
 from evaluate import evaluate
-from unet import UNet, UnetResnet50, hrnet48, Unet_p1
+from unet import UNet, UnetResnet50, hrnet48, Unet_p1, hrnet48_p1
 
 from utils.miou import IOU, MIOU
 import numpy as np
@@ -59,7 +59,7 @@ def train_net(net,
     # print()
     # print('-------------------------------------------------------')
     # print('Create dataset')
-    is_tf= True # False
+    is_tf = True # False
     try:
         dataset = CarvanaDataset(dir_img, dir_mask, img_scale,is_tf)
     except (AssertionError, RuntimeError):
@@ -382,7 +382,10 @@ if __name__ == '__main__':
     # n_classes is the number of probabilities you want to get per pixel
 
     # net = UNet(n_channels=3, n_classes=2, bilinear=True)
-    net = UnetResnet50(n_channels=3, n_classes=2)
+    # net = UnetResnet50(n_channels=3, n_classes=2)
+    # net =hrnet48(n_channels=3, n_classes=2)
+    # net =Unet_p1(n_channels=3, n_classes=2)
+    net = hrnet48_p1(n_channels=3, n_classes=2)
 
     logging.info(
         f'Network:\n'

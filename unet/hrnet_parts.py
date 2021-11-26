@@ -52,7 +52,7 @@ class StemStage(nn.Module):
 
 # renet block
 class ResBlock(nn.Module):
-    """(conv3*3 => BN => relu)*2+1*1"""
+    """[(conv3*3 => BN => relu => conv3*3 => BN ) + conv1*1 ] => relu"""
 
     def __init__(self,inchannels, outchannels):
         super(ResBlock,self).__init__()
@@ -138,7 +138,6 @@ class UpBlock(nn.Module):
     def forward(self,x):
         x=self.up(x)
         return x
-
 
 
 # layer block
@@ -257,11 +256,11 @@ class TransBlock(nn.Module):
 
 Fusion_model=['keep','fuse','multi']
 
-class FusionBlock(nn.Module):
+class FusionBlock2(nn.Module):
     """at last fusion feature"""
 
     def __init__(self,stage4_channels, model='keep'):
-        super(FusionBlock,self).__init__()
+        super(FusionBlock2,self).__init__()
 
         self.model=model
         self.stage4_channels=stage4_channels
