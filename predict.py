@@ -9,10 +9,11 @@ from PIL import Image
 from torchvision import transforms
 
 from utils.data_loading import BasicDataset
-from unet import UNet
+from unet import UNet, UnetResnet50, hrnet48, Unet_p1, hrnet48_p1, UNet_fp16, UNet_fp4
 from utils.utils import plot_img_and_mask
 
 import cv2
+import time
 
 def predict_img(net,
                 full_img,
@@ -25,19 +26,19 @@ def predict_img(net,
     img = torch.from_numpy(img)
     img = img.unsqueeze(0)
     img = img.to(device=device, dtype=torch.float32)
-    print('input img shape: ',img.shape)
+    # print('input img shape: ',img.shape)
 
     with torch.no_grad():
         output = net(img)
-        print('output img shape: ',output.shape)
+        # print('output img shape: ',output.shape)
 
         if net.n_classes > 1:
             probs = F.softmax(output, dim=1)[0]
         else:
             probs = torch.sigmoid(output)[0]
         
-        print('F.softmax(output, dim=1).shape: ',F.softmax(output, dim=1).shape)
-        print('probs.shape: ',probs.shape)
+        # print('F.softmax(output, dim=1).shape: ',F.softmax(output, dim=1).shape)
+        # print('probs.shape: ',probs.shape)
 
         tf = transforms.Compose([
             transforms.ToPILImage(),
@@ -46,7 +47,7 @@ def predict_img(net,
         ])
 
         full_mask = tf(probs.cpu()).squeeze()
-        print('full_mask.shape: ',full_mask.shape)
+        # print('full_mask.shape: ',full_mask.shape)
 
     if net.n_classes == 1:
         return (full_mask > out_threshold).numpy()
@@ -65,7 +66,7 @@ def get_args():
     parser.add_argument('--no-save', '-n', action='store_true', help='Do not save the output masks')
     parser.add_argument('--mask-threshold', '-t', type=float, default=0.5,
                         help='Minimum probability value to consider a mask pixel white')
-    parser.add_argument('--scale', '-s', type=float, default=0.5,
+    parser.add_argument('--scale', '-s', type=float, default=1, # 0.5
                         help='Scale factor for the input images')
 
     return parser.parse_args()
@@ -81,10 +82,10 @@ def get_output_filenames(args):
 
 def mask_to_image(mask: np.ndarray):
     if mask.ndim == 2:
-        print('mask.ndim = 2')
+        # print('mask.ndim = 2')
         return Image.fromarray((mask * 255).astype(np.uint8))
     elif mask.ndim == 3:
-        print('mask.ndim = 3')
+        # print('mask.ndim = 3')
         channel=mask.shape[0]
         if channel==3:
             backgrand=Image.fromarray(np.uint8(mask[0]*0))
@@ -98,15 +99,27 @@ def mask_to_image(mask: np.ndarray):
 
 
 if __name__ == '__main__':
-    print()
-    print('*************************predict***********************************')
+    # print()
+    # print('*************************predict***********************************')
+
+    # 统计用时
+    start_time=time.perf_counter()
+
     args = get_args()
     in_files = args.input
     out_files = get_output_filenames(args)
 
     net = UNet(n_channels=3, n_classes=2)
+    # net = UNet(n_channels=3, n_classes=2, bilinear=True)
+    # net = UnetResnet50(n_channels=3, n_classes=2)
+    # net =hrnet48(n_channels=3, n_classes=2)
+    # net =Unet_p1(n_channels=3, n_classes=2)
+    # net = hrnet48_p1(n_channels=3, n_classes=2)
+    # net = UNet_fp4(n_channels=3, n_classes=2)
+    # net = UNet_fp16(n_channels=3, n_classes=2)
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('cpu')
     logging.info(f'Loading model {args.model}')
     logging.info(f'Using device {device}')
 
@@ -115,21 +128,24 @@ if __name__ == '__main__':
 
     logging.info('Model loaded!')
 
+    num_img=0
+
     for i, filename in enumerate(in_files):
-        print('filename: ',filename)
+        num_img+=1
+        # print('filename: ',filename)
         logging.info(f'\nPredicting image {filename} ...')
         # img = Image.open(filename)
         img=cv2.imread(filename)
-        print('img: ',img)
+        # print('img: ',img)
 
         mask = predict_img(net=net,
                            full_img=img,
                            scale_factor=args.scale,
                            out_threshold=args.mask_threshold,
                            device=device)
-        print('mask_pre type: ',type(mask))
-        print('mask_pre shape: ',mask.shape)
-        print('mask_pre: ',mask)
+        # print('mask_pre type: ',type(mask))
+        # print('mask_pre shape: ',mask.shape)
+        # print('mask_pre: ',mask)
 
         if not args.no_save:
             out_filename = out_files[i]
@@ -140,3 +156,8 @@ if __name__ == '__main__':
         if args.viz:
             logging.info(f'Visualizing results for image {filename}, close to continue...')
             plot_img_and_mask(img, mask)
+
+    # 统计用时
+    end_time=time.perf_counter()
+    print('总共用时：',end_time-start_time)
+    print('平均用时：',(end_time-start_time)/num_img)

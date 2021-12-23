@@ -15,7 +15,7 @@ from tqdm import tqdm
 from utils.data_loading import BasicDataset, CarvanaDataset, PimgDataset
 from utils.dice_score import dice_loss
 from evaluate import evaluate
-from unet import UNet, UnetResnet50, hrnet48, Unet_p1, hrnet48_p1
+from unet import UNet, UnetResnet50, hrnet48, Unet_p1, hrnet48_p1, UNet_fp16, UNet_fp4
 
 from utils.miou import IOU, MIOU
 import numpy as np
@@ -40,8 +40,11 @@ from torchvision.transforms import transforms
 # dir_img = Path('../../../../data/floorplan/r3d_cvc/imgs/')
 # dir_mask = Path('../../../../data/floorplan/r3d_cvc/masks/')
 
-dir_img = Path('../../../../data/floorplan/car/imgs/train/')
-dir_mask = Path('../../../../data/floorplan/car/imgs/masks/')
+# dir_img = Path('../../../../data/floorplan/car/imgs/train/')
+# dir_mask = Path('../../../../data/floorplan/car/imgs/masks/')
+
+dir_img = Path('../data/test/img/')
+dir_mask = Path('../data/test/mask/')
 
 dir_checkpoint = Path('../checkpoints/')
 
@@ -59,7 +62,10 @@ def train_net(net,
     # print()
     # print('-------------------------------------------------------')
     # print('Create dataset')
-    is_tf = True # False
+
+    is_tf = False
+    # is_tf = True 
+
     try:
         dataset = CarvanaDataset(dir_img, dir_mask, img_scale,is_tf)
     except (AssertionError, RuntimeError):
@@ -125,6 +131,7 @@ def train_net(net,
         # print('for epoch ')
         net.train()
         epoch_loss = 0
+        miou_epoch=0
         with tqdm(total=n_train, desc=f'Epoch {epoch + 1}/{epochs}',unit='img') as pbar:
             for batch in train_loader:
                 # print()
@@ -135,37 +142,38 @@ def train_net(net,
 
                 # print()
                 # print('***********************************************')
-                # print()
+                # print('true_masks: ',true_masks)
                 # print('true_masks.shape: ',true_masks.shape)
-                # print('images.shape: ',images.shape)
+                # # print('images.shape: ',images.shape)
+                # print()
 
                 # warm up LR
-                start_LR=0.000001
-                end_LR=0.0001
-                warmup_step=50
-                if global_step < warmup_step:
-                    now_LR=start_LR+global_step*(end_LR-start_LR)/warmup_step
-                    print()
-                    print('-------------------------------------------------------')
-                    print('global_step: ',global_step)
-                    print('now_LR: ',now_LR)
-                    optimizer = optim.RMSprop(net.parameters(), lr=now_LR, weight_decay=1e-8,  momentum=0.9)
+                # start_LR=0.000001
+                # end_LR=0.0001
+                # warmup_step=50
+                # if global_step < warmup_step:
+                #     now_LR=start_LR+global_step*(end_LR-start_LR)/warmup_step
+                #     print()
+                #     print('-------------------------------------------------------')
+                #     print('global_step: ',global_step)
+                #     print('now_LR: ',now_LR)
+                #     optimizer = optim.RMSprop(net.parameters(), lr=now_LR, weight_decay=1e-8,  momentum=0.9)
 
                 # adjust LR
-                reduce_step=55
-                if global_step>reduce_step:
-                    # 直接衰减
-                    # now_LR=0.000001
-                    # optimizer = optim.RMSprop(net.parameters(), lr=now_LR,  weight_decay=1e-8, momentum=0.9)
-                    # 余弦退火调整学习率
-                    cos_a=np.cos((global_step-reduce_step)*np.pi/300)
-                    now_LR=end_LR*cos_a
-                    print()
-                    print('-------------------------------------------------------')
-                    print('global_step: ',global_step)
-                    print('cos_a: ',cos_a)
-                    print('now_LR: ',now_LR)
-                    optimizer = optim.RMSprop(net.parameters(), lr=now_LR,  weight_decay=1e-8, momentum=0.9)
+                # reduce_step=55
+                # if global_step>reduce_step:
+                #     # 直接衰减
+                #     # now_LR=0.000001
+                #     # optimizer = optim.RMSprop(net.parameters(), lr=now_LR,  weight_decay=1e-8, momentum=0.9)
+                #     # 余弦退火调整学习率
+                #     cos_a=np.cos((global_step-reduce_step)*np.pi/300)
+                #     now_LR=end_LR*cos_a
+                #     print()
+                #     print('-------------------------------------------------------')
+                #     print('global_step: ',global_step)
+                #     print('cos_a: ',cos_a)
+                #     print('now_LR: ',now_LR)
+                #     optimizer = optim.RMSprop(net.parameters(), lr=now_LR,  weight_decay=1e-8, momentum=0.9)
                 # if global_step > 5000:
                 #     optimizer = optim.RMSprop(net.parameters(),
                 #                               lr=0.000001,
@@ -197,12 +205,12 @@ def train_net(net,
                 # true_masks_onehot = F.one_hot(true_masks.argmax(dim=1),
                 #                        net.n_classes).permute(0, 3, 1,
                 #                                               2).float()
-                true_masks_onehot = F.one_hot(torch.squeeze(true_masks,dim=1),net.n_classes).permute(0, 3, 1,2).float()
+                true_masks_onehot = F.one_hot(torch.squeeze(true_masks,dim=1),net.n_classes).permute(0, 3, 1, 2).float()
 
                 # print()
                 # print('***********************************************')
-                # print()
                 # print('true_masks_onehot.shape: ',true_masks_onehot.shape)
+                # print()
 
                 with torch.cuda.amp.autocast(enabled=amp):
                     masks_pred = net(images)
@@ -244,18 +252,14 @@ def train_net(net,
                     # print()
                     # print('masks_pred_max.shape: ',masks_pred_max.shape)
                     # print('masks_pred_max.numpy(): ',Tensor.cpu(masks_pred_max).detach().numpy())
-                    mask_pred_onehot = F.one_hot(masks_pred_max,
-                                                 net.n_classes).permute(
-                                                     0, 3, 1, 2).float()
+                    mask_pred_onehot = F.one_hot(masks_pred_max, net.n_classes).permute(0, 3, 1, 2).float()
                     # MIOU no bg
                     miou_train = MIOU(mask_pred_onehot[:,1:,...], true_masks_onehot[:,1:,...])
 
-                    # print()
                     # print('mask_pred_onehot.shape: ',mask_pred_onehot.shape)
                     # print('mask_pred_onehot.numpy(): ',Tensor.cpu(mask_pred_onehot).detach().numpy())
-                    diceloss = dice_loss(masks_pred_softmax,
-                                         true_masks_onehot.float(),
-                                         multiclass=True)
+                    diceloss = dice_loss(masks_pred_softmax, true_masks_onehot.float(), multiclass=True)
+                    # print()
 
                     # print()
                     # print('diceloss.shape: ',diceloss.shape)
@@ -265,7 +269,8 @@ def train_net(net,
                     CE_dice_loss = CE_loss + diceloss
 
                     # change loss func here
-                    loss = CE_dice_loss
+                    # loss = CE_dice_loss
+                    loss = BCE_dice_loss
                     # print(loss)
 
                     # loss=dice
@@ -308,6 +313,7 @@ def train_net(net,
                     miou_eva, dice_softmax_nobg, dice_softmax_bg, dice_onehot_nobg, dice_onehot_bg, acc = evaluate(
                         net, val_loader, device)
                     val_score = dice_onehot_nobg
+                    miou_epoch=miou_eva
                     # scheduler.step(val_score) # LR adjust
 
                     logging.info('Validation Dice score: {}'.format(val_score))
@@ -330,13 +336,23 @@ def train_net(net,
                         **histograms
                     })
     
+        # # just each epoch
+        # if save_checkpoint:
+        #     Path(dir_checkpoint).mkdir(parents=True, exist_ok=True)
+        #     torch.save(
+        #         net.state_dict(),
+        #         str(dir_checkpoint /
+        #             'checkpoint_epoch{}_r3dcvc_LR5_unetres_miou{}.pth'.format(epoch, miou_epoch)))
+        #     # logging.info(f'Checkpoint {epoch + 1} saved!')
+        #     logging.info(f'Checkpoint {epoch} saved!')
+    
     # just save the last one
     if save_checkpoint:
         Path(dir_checkpoint).mkdir(parents=True, exist_ok=True)
         torch.save(
             net.state_dict(),
             str(dir_checkpoint /
-                'checkpoint_epoch{}_mosaic_LR5_resnet.pth'.format(epochs)))
+                'checkpoint_epoch{}_unet_test_miou{}.pth'.format(epochs, miou_epoch)))
         # logging.info(f'Checkpoint {epoch + 1} saved!')
         logging.info(f'Checkpoint {epochs} saved!')
 
@@ -345,13 +361,13 @@ def get_args():
     parser = argparse.ArgumentParser(
         description='Train the UNet on images and target masks')
     parser.add_argument('--epochs', '-e', metavar='E', type=int,
-                        default=22, # 100
+                        default=5, # 100
                         help='Number of epochs')
     parser.add_argument('--batch-size', '-b', dest='batch_size', metavar='B', type=int,
                         default=1,
                         help='Batch size')
     parser.add_argument('--learning-rate', '-l',  metavar='LR',  type=float,
-                        default=0.000001,
+                        default=0.00001,
                         help='Learning rate',  dest='lr')
     parser.add_argument('--load', '-f',  type=str,
                         default=False,
@@ -381,11 +397,13 @@ if __name__ == '__main__':
     # n_channels=3 for RGB images
     # n_classes is the number of probabilities you want to get per pixel
 
-    # net = UNet(n_channels=3, n_classes=2, bilinear=True)
+    net = UNet(n_channels=3, n_classes=3, bilinear=True)
     # net = UnetResnet50(n_channels=3, n_classes=2)
     # net =hrnet48(n_channels=3, n_classes=2)
     # net =Unet_p1(n_channels=3, n_classes=2)
-    net = hrnet48_p1(n_channels=3, n_classes=2)
+    # net = hrnet48_p1(n_channels=3, n_classes=2)
+    # net = UNet_fp4(n_channels=3, n_classes=2)
+    # net = UNet_fp16(n_channels=3, n_classes=3)
 
     logging.info(
         f'Network:\n'
