@@ -254,7 +254,12 @@ def train_net(net,
                     # print('masks_pred_max.numpy(): ',Tensor.cpu(masks_pred_max).detach().numpy())
                     mask_pred_onehot = F.one_hot(masks_pred_max, net.n_classes).permute(0, 3, 1, 2).float()
                     # MIOU no bg
-                    miou_train = MIOU(mask_pred_onehot[:,1:,...], true_masks_onehot[:,1:,...])
+                    class_iou_train, miou_train = MIOU(mask_pred_onehot[:,1:,...], true_masks_onehot[:,1:,...])
+                    num_class=0
+                    for iou in class_iou_train:
+                        num_class+=1
+                        experiment.log({'Train NO.{}class IOU'.format(num_class):iou})
+
 
                     # print('mask_pred_onehot.shape: ',mask_pred_onehot.shape)
                     # print('mask_pred_onehot.numpy(): ',Tensor.cpu(mask_pred_onehot).detach().numpy())
@@ -289,9 +294,9 @@ def train_net(net,
                 experiment.log({
                     # 'BCE_loss': BCE_loss.item(),
                     # 'dice_loss': diceloss.item(),
-                    'MIOU Train': miou_train,
-                    'CE_dice_loss': CE_dice_loss.item(),
-                    'BCE_dice_loss': BCE_dice_loss.item(),
+                    'Train MIOU': miou_train,
+                    'Train CE_dice_loss': CE_dice_loss.item(),
+                    'Train BCE_dice_loss': BCE_dice_loss.item(),
                     # 'step': global_step,
                     # 'epoch': epoch
                 })
@@ -310,11 +315,16 @@ def train_net(net,
                         histograms['Gradients/' + tag] = wandb.Histogram(value.grad.data.cpu())
 
                     # val_score,val_score_soft,acc = evaluate(net, val_loader, device)
-                    miou_eva, dice_softmax_nobg, dice_softmax_bg, dice_onehot_nobg, dice_onehot_bg, acc = evaluate(
-                        net, val_loader, device)
+                    class_iou_eva , miou_eva, dice_softmax_nobg, dice_softmax_bg, dice_onehot_nobg, dice_onehot_bg, acc = evaluate(net, val_loader, device)
+
                     val_score = dice_onehot_nobg
                     miou_epoch=miou_eva
                     # scheduler.step(val_score) # LR adjust
+
+                    num_class=0
+                    for iou in class_iou_eva:
+                        num_class+=1
+                        experiment.log({'Validation NO.{}class IOU'.format(num_class):iou})
 
                     logging.info('Validation Dice score: {}'.format(val_score))
                     logging.info('Validation MIOU score: {}'.format(miou_eva))
@@ -322,8 +332,8 @@ def train_net(net,
                         'learning rate': optimizer.param_groups[0]['lr'],
                         # 'Dice softmax nobg': dice_softmax_nobg,
                         # 'Dice softmax bg': dice_softmax_bg,
-                        'Dice onehot nobg': dice_onehot_nobg,
-                        'MIOU Evaluation': miou_eva,
+                        'Validation Dice onehot nobg': dice_onehot_nobg,
+                        'Validation MIOU': miou_eva,
                         # 'Dice onehot bg': dice_onehot_bg,
                         # 'PA': acc,
                         'images':  wandb.Image(images[0].cpu()),

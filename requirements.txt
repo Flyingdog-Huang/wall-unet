@@ -1,7 +1,8 @@
-matplotlib
-numpy
-Pillow
-torch
-torchvision
-tqdm
-wandb
+matplotlib==3.5.1
+numpy==1.20.3
+opencv_contrib_python==4.5.4.60
+Pillow==8.4.0
+torch==1.9.0
+torchvision==0.10.0
+tqdm==4.62.2
+wandb==0.12.1
