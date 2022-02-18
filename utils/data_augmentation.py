@@ -4,6 +4,7 @@ from os import listdir
 from os.path import splitext
 from pathlib import Path
 import random
+from torchvision.transforms import transforms
 
 def img_aug(img):
     # in: (w,h,c)-255
@@ -160,8 +161,31 @@ def mosaic_aug(images_dir,masks_dir):
         cv2.imwrite(img_name,img_mosaic)
         cv2.imwrite(mask_name,mask_mosaic)
 
+def tensor_img_mask_aug(img,mask):
+    '''
+    input:
+        img/mask -  tensor(n,c,w,h)
+    return:
+        img/mask -  tensor(n,c,w,h)
+    '''
+    # img add noise
+    # noise=np.random.normal(0,0.01**0.5,img.shape)
+    # img=torch.tensor(np.clip((img.numpy()+noise),0,1))
 
-        
+    augs_list=[]
+    # flip
+    if  np.random.rand()>0.5:
+        augs_list.append(transforms.RandomHorizontalFlip(p=1))
+    if  np.random.rand()>0.5:
+        augs_list.append(transforms.RandomVerticalFlip(p=1))
+    # rotation
+    if  np.random.rand()>0.5:
+        augs_list.append(transforms.RandomRotation(degrees=(90,90)))
+    if len(augs_list)>0:
+        aug = transforms.Compose(augs_list)
+        return aug(img), aug(mask)
+    else:
+        return img, mask
 
 
 if __name__ == '__main__':

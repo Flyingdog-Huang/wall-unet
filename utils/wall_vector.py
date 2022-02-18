@@ -3,6 +3,248 @@ import numpy as np
 import math
 import json
 
+
+max_k=99999 # max 斜率
+
+def cnt2img(cnt,x,y):
+    new_mask=np.zeros((y,x),np.uint8)
+    cv2.drawContours(new_mask,[cnt],0,1,-1)
+    return new_mask
+
+def points2img(points,x,y):
+    new_mask=np.zeros((y,x),np.uint8)
+    cv2.drawContours(new_mask,[points],0,1,-1)
+    return new_mask
+
+def process_cnt(cnt,x,y):
+    cnt_=cnt.copy()
+    for i in range(len(cnt_)):
+        cnt_[i][0][0]-=x
+        cnt_[i][0][1]-=y
+    return cnt_
+
+# def campIOU(cnt):
+#     stand_rect=cv2.boundingRect(cnt)
+#     x,y,w,h=stand_rect
+#     cnt=process_cnt(cnt,x,y)
+#     cnt_mask=cnt2img(cnt,w,h)
+#     rect= cv2.minAreaRect(cnt)
+#     points=cv2.boxPoints(rect)
+#     points=np.int0(points) 
+#     rec_mask=points2img(points,w,h)
+#     pre_true=cnt_mask*rec_mask
+#     return np.sum(pre_true)/np.sum(rec_mask)
+
+def campIOU(cnt):
+    area_cnt=cv2.contourArea(cnt)
+    rect= cv2.minAreaRect(cnt)
+    points=cv2.boxPoints(rect)
+    points=np.int0(points)[:,np.newaxis,:]
+    # print('cnt',cnt)
+    # print('points',points)
+    area_rect=cv2.contourArea(points)
+    # print('cnt shape',cnt.shape)
+    # print('points shape',points.shape)
+    # print('cnt type',type(cnt))
+    # print('points type',type(points))
+    # print('area_cnt',area_cnt)
+    # print('area_rect',area_rect)
+    return 1 if area_rect==0 else area_cnt/area_rect
+
+def find_k_line(cnt,k_line):
+    rect= cv2.minAreaRect(cnt)
+    points=cv2.boxPoints(rect)
+    points=np.int0(points) 
+    # print('points',points)
+    center_x,center_y=0,0
+    num_point=len(points)
+    for point in points:
+        x,y=point
+        center_x+=x
+        center_y+=y
+    center_x=center_x/num_point
+    center_y=center_y/num_point
+    # print('center_x, center_y',center_x,center_y)
+    a,b,c=None,None,None
+    if k_line==0:
+        a=0
+        b=1
+        c=-center_y
+    elif k_line==max_k:
+        b=0
+        a=1
+        c=-center_x
+    else:
+        a=k_line
+        b=-1
+        c=center_y-k_line*center_x
+    # print('a,b,c',a,b,c)
+    return a,b,c
+
+def pointsCrossLine(x1,y1,x2,y2,a,b,c):
+    a1=y2-y1
+    b1=x1-x2
+    c1=x2*y1-x1*y2
+    cx=(c1*b-b1*c)/(a*b1-b*a1+0.0001)
+    cy=(c*a1-a*c1)/(a*b1-b*a1+0.0001)
+    return cx,cy
+
+def isin_cntflag(cnt,cnt_flag):
+    '''
+    cnt: np.array -> (n,1,2)
+    cnt_flag: np.array -> (h,w)
+    '''
+    # print('cnt.shape',cnt.shape)
+    # print('cnt_flag.shape',cnt_flag.shape)
+    # area_cnt=cv2.contourArea(cnt)
+    shape_flag=cnt_flag.shape
+    cnt_img=np.zeros((shape_flag[0],shape_flag[1]),np.uint8)
+    cv2.drawContours(cnt_img,[cnt],0,1,-1)
+    # print('np.sum(cnt_flag)',np.sum(cnt_flag))
+    area_iou=np.sum(cnt_img*cnt_flag)
+    # print('area_cnt',area_cnt)
+    # print('area_iou',area_iou)
+    # print('np.sum(cnt_img)',np.sum(cnt_img))
+    if area_iou<np.sum(cnt_img):return False
+    return True
+
+def split_cnt(cnt,a,b,c,cnt_flag):
+    num_cnt=len(cnt)
+    cnts=[]
+    new_cnt=[]
+    for num in range(num_cnt-1):
+        x1,y1=cnt[num][0]
+        x2,y2=cnt[num+1][0]
+        f1=a*x1+b*y1+c
+        f2=a*x2+b*y2+c
+        new_cnt.append(cnt[num])
+        # 点集分类
+        if (f1==0 and f2!=0) or f1*f2<0:
+            if f1==0 and f2!=0:
+                new_cnt=np.array(new_cnt,np.int0)
+                cnts.append(new_cnt)
+                new_cnt=[cnt[num]]
+
+            else:
+                # 计算交点
+                cx,cy=pointsCrossLine(x1,y1,x2,y2,a,b,c)
+                new_cnt.append(np.array([[cx,cy]],np.int0))
+                new_cnt=np.array(new_cnt,np.int0)
+                cnts.append(new_cnt)
+                new_cnt=[]
+                new_cnt.append(np.array([[cx,cy]],np.int0))
+
+        # 始末点合并
+        if num+1==num_cnt-1:
+            if len(cnts)==0:
+                return [cnt]
+            # 判断始末点关系
+            start_point=cnt[0]
+            end_point=cnt[num+1]
+            f_s=a*start_point[0][0]+b*start_point[0][1]+c
+            f_e=a*end_point[0][0]+b*end_point[0][1]+c
+            # print('start_point',start_point)
+            # print('end_point',end_point)
+            # print('f_s',f_s)
+            # print('f_e',f_e)
+            # print('a,b,c',[a,b,c])
+            if f_s*f_e<0:
+                # print('------------f_s*f_e<0------------')
+                new_cnt.append(end_point)
+                cx,cy=pointsCrossLine(start_point[0][0],start_point[0][1],end_point[0][0],end_point[0][1],a,b,c)
+                new_cnt.append(np.array([[cx,cy]],np.int0))
+                new_cnt=np.array(new_cnt,np.int0)
+                cnts.append(new_cnt)
+                # print('np.array(new_cnt,np.int0) shape',np.array(new_cnt,np.int0).shape)
+                # print('cnts[0] shape',cnts[0].shape)
+                # print('np.array([[cx,cy]],np.int0) shape',np.array([[[cx,cy]]],np.int0).shape)
+                cnts[0]=np.concatenate((cnts[0],np.array([[[cx,cy]]],np.int0)))
+                return cnts
+            elif f_e==0 and f_s!=0:
+                # print('------------f_e==0------------')
+                new_cnt.append(end_point)
+                new_cnt=np.array(new_cnt,np.int0)
+                cnts.append(new_cnt)
+                # print('cnts[0]',cnts[0])
+                # print('cnts[0] shape',cnts[0].shape)
+                # print('end_point',end_point)
+                # print('end_point shape',end_point.shape)
+                cnts[0]=np.concatenate((np.array([end_point]), cnts[0]))
+                return cnts
+            elif f_s==0:
+                # print('------------f_s==0------------')
+                new_cnt.append(end_point)
+                new_cnt.append(start_point)
+                new_cnt=np.array(new_cnt,np.int0)
+                cnts.append(new_cnt)
+                if len(cnts[0])==1:
+                    del cnts[0]
+                # print('cnts[0] shape',cnts[0].shape)
+                # print('new_cnt shape',new_cnt.shape)
+                return cnts
+            elif f_s*f_e>0:
+                new_cnt.append(end_point)
+                cnts[0]=np.concatenate((new_cnt,cnts[0]))
+                return cnts
+
+def findMaxMIOU(cnt,k_line,thr_iou=0.7,max_times=20):
+    now_iou=campIOU(cnt)
+    # print('before_iou',now_iou)
+    if now_iou>=thr_iou:
+        return [cnt]
+    
+    # create cnt flag
+    stand_rect=cv2.boundingRect(cnt)
+    # print('stand_rect',stand_rect)
+    cnt_flag=np.zeros((stand_rect[3],stand_rect[2]),np.uint8)
+    cnt_=process_cnt(cnt,stand_rect[0],stand_rect[1])
+    cv2.drawContours(cnt_flag,[cnt_],0,1,-1)
+
+    fa,fb,fc=None,None,None
+    seg_times=0
+    min_cnt=cnt
+    min_cnts=[min_cnt]
+    while seg_times<max_times:
+        # print('seg_times',seg_times)
+        # print('area min_cnt',cv2.contourArea(min_cnt))
+        if cv2.contourArea(min_cnt)<10:break
+        seg_times+=1
+        # print('min_cnt',min_cnt)
+        a,b,c=find_k_line(min_cnt,k_line)
+        # print('a,b,c',a,b,c)
+        cnt_location=split_cnt(min_cnt,a,b,c,cnt_flag)
+
+        # update min_cnt
+        min_iou=1
+        for cnt_j in cnt_location:
+            iou_j=campIOU(cnt_j)
+            if iou_j<min_iou:
+                min_cnt=cnt_j
+                min_iou=iou_j
+                min_cnts.append(min_cnt)
+
+        # 计算miou及更新直线
+        cnts_compare=split_cnt(cnt,a,b,c,cnt_flag)
+        # print('cnts_compare',cnts_compare)
+        # print('len(cnts_compare)',len(cnts_compare))
+        miou=0
+        for cnt_i in cnts_compare:
+            iou_i=campIOU(cnt_i)
+            # print('iou',iou_i)
+            miou+=iou_i
+        miou=miou/len(cnts_compare)
+        # print('miou',miou)
+        # 若miou更大
+        if miou>now_iou:
+            # print('miou',miou)
+            fa,fb,fc=a,b,c
+            now_iou=miou
+                
+    # print('fa,fb,fc',[fa,fb,fc])
+    # print('now_iou',now_iou)
+    final_cnts=[cnt] if fa == None else split_cnt(cnt,fa,fb,fc,cnt_flag)
+    return final_cnts  # , min_cnts, now_iou,cnt_flag
+
 def wall_vector(img,img_pre):
 
         # process img
@@ -13,7 +255,6 @@ def wall_vector(img,img_pre):
         lines_fastLSD=lsd_dec.detect(img_gray)
 
         # logger.warning('num of lines in source data: {}'.format(len(lines_fastLSD)))
-
         
         # filter lines
         img_wall=img_pre.copy()
@@ -47,7 +288,6 @@ def wall_vector(img,img_pre):
         K_map=np.zeros((y,x),np.float16) # save k
         line_map=np.zeros((y,x),np.uint16) # save no(1,2,3...) of wall line, 0-not wall
 
-        max_k=99999 # max 斜率
         # NO. of wall line
         no_line=0
 
@@ -170,13 +410,17 @@ def wall_vector(img,img_pre):
                 direc_line=[x1,y1,x5,y5] if mask1_p>mask2_p else [x1,y1,x3,y3]
                 direc_lines.append(direc_line)
 
+        print('---------------finish filter wall lines--------------------')
+
         #### prediction pix 分类阶段 ####
         # save new no(1,2,3...) of wall line, 0-not wall
         new_line_map=np.zeros((y,x),np.uint16) 
-        # save distance  from pix point to wall lines
+        # save distance from pix point to wall lines
         dis_k_line_map=np.zeros((y,x),np.float16)
         # 保存对应wall line的长度
         len_dis_k_line_map=np.zeros((y,x),np.float16)
+        
+        # ************most time-consuming********************
         # 点距探测
         def point_detect(x_point,y_point):
             r_detect=1
@@ -211,6 +455,9 @@ def wall_vector(img,img_pre):
                 # 若此点为prediction pix, 且不为wall line 轨迹
                 if img_bool[yi,xi]==1 and line_map[yi,xi]==0:
                     point_detect(xi,yi)
+
+        print('---------------finish classify each prediction pix--------------------')
+        # ************most time-consuming********************
 
         #### k feature map充填阶段 ####
         # wall line 方向的探测区域长度 
@@ -470,6 +717,8 @@ def wall_vector(img,img_pre):
                                 new_line_map[y_line,x_line]=new_no
                                 dis_k_line_map[y_line,x_line]=0 
         
+        print('---------------finish feature map--------------------')
+
         ######### 区域生长阶段 ############
         def isPointIn(point_x,point_y,x_b_min=0,x_b_max=x,y_b_min=0,y_b_max=y):
             #判断点是否在某一区域内
@@ -548,29 +797,45 @@ def wall_vector(img,img_pre):
                 for y_rg in range(y):
                     if new_line_map[y_rg,x_rg]>0 and is_K_same(K_map[y_rg,x_rg],k_rg) :
                         k_RG(x_rg,y_rg,k_stand=k_rg,k_rg_map=rg_map,k_rg_flag_map=rg_flag_map)
+            
+            print('---------------finish k_{} grow up--------------------'.format(k_rg))
+            
             # 拟合轮廓成矩形
             contours, _ = cv2.findContours(rg_map, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+            print('---------------finish k_{} find Contours--------------------'.format(k_rg))
+            
             # ***基于:轮廓面积>area_thr---过滤杂点
             for cnt in contours:
                 area=cv2.contourArea(cnt)
                 if area<10:continue
-                rect= cv2.minAreaRect(cnt)
-                points=cv2.boxPoints(rect)
-                points=np.int0(points)
-                cv2.drawContours(new_wall_mask,[points],0,255,-1)
-                l1=max(int(((points[0][0]-points[1][0])**2)**0.5),int(((points[0][1]-points[1][1])**2)**0.5))
-                l2=max(int(((points[2][0]-points[1][0])**2)**0.5),int(((points[2][1]-points[1][1])**2)**0.5))
-                width_wall=min(l1,l2)
-                x_e_vector=(points[0][0]+points[1][0])/2 if width_wall==l1 else (points[2][0]+points[1][0])/2
-                y_e_vector=(points[0][1]+points[1][1])/2 if width_wall==l1 else (points[2][1]+points[1][1])/2
-                x_s_vector=(points[2][0]+points[3][0])/2 if width_wall==l1 else (points[0][0]+points[3][0])/2
-                y_s_vector=(points[2][1]+points[3][1])/2 if width_wall==l1 else (points[0][1]+points[3][1])/2
-                wall_vector={}
-                wall_vector['sPoint']=[x_e_vector,y_e_vector]
-                wall_vector['ePoint']=[x_s_vector,y_s_vector]
-                wall_vector['width']=width_wall
-                wall_vector['height']='default'
-                wall_vector['isStructural']=True
-                wall_vectors.append(json.dumps(wall_vector))
-        
+                # print('k_rg',k_rg)
+                # print('cnt',cnt)
+                cnts=findMaxMIOU(cnt,k_rg)
+                # print('len(cnts)',len(cnts))
+                for cnt_i in cnts:
+                    # print('cnt_i',cnt_i)
+                    # print('len(cnt_i)',len(cnt_i))
+                    # print('cnt_i type',type(cnt_i))
+                    rect= cv2.minAreaRect(cnt_i)
+                    points=cv2.boxPoints(rect)
+                    points=np.int0(points)
+                    cv2.drawContours(new_wall_mask,[points],0,255,-1)
+                    l1=max(int(((points[0][0]-points[1][0])**2)**0.5),int(((points[0][1]-points[1][1])**2)**0.5))
+                    l2=max(int(((points[2][0]-points[1][0])**2)**0.5),int(((points[2][1]-points[1][1])**2)**0.5))
+                    width_wall=min(l1,l2)
+                    x_e_vector=(points[0][0]+points[1][0])/2 if width_wall==l1 else (points[2][0]+points[1][0])/2
+                    y_e_vector=(points[0][1]+points[1][1])/2 if width_wall==l1 else (points[2][1]+points[1][1])/2
+                    x_s_vector=(points[2][0]+points[3][0])/2 if width_wall==l1 else (points[0][0]+points[3][0])/2
+                    y_s_vector=(points[2][1]+points[3][1])/2 if width_wall==l1 else (points[0][1]+points[3][1])/2
+                    wall_vector={}
+                    wall_vector['sPoint']=[x_e_vector,y_e_vector]
+                    wall_vector['ePoint']=[x_s_vector,y_s_vector]
+                    wall_vector['width']=width_wall
+                    wall_vector['height']='default'
+                    wall_vector['isStructural']=True
+                    wall_vectors.append(json.dumps(wall_vector))
+
+            print('---------------finish k_{} rect fit--------------------'.format(k_rg))
+
         return new_wall_mask

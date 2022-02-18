@@ -2,7 +2,6 @@ import argparse
 import logging
 import sys
 from pathlib import Path
-
 import torch
 from torch.functional import Tensor
 import torch.nn as nn
@@ -11,15 +10,14 @@ import wandb
 from torch import optim
 from torch.utils.data import DataLoader, dataset, random_split
 from tqdm import tqdm
-
 from utils.data_loading import BasicDataset, CarvanaDataset, PimgDataset
 from utils.dice_score import dice_loss
 from evaluate import evaluate
 from unet import UNet, UnetResnet50, hrnet48, Unet_p1, hrnet48_p1, UNet_fp16, UNet_fp4
-
 from utils.miou import IOU, MIOU
 import numpy as np
 from torchvision.transforms import transforms
+from utils.data_augmentation import tensor_img_mask_aug
 
 # dir_img = Path('./data/imgs/')
 # dir_mask = Path('./data/masks/')
@@ -62,9 +60,14 @@ def train_net(net,
     # print()
     # print('-------------------------------------------------------')
     # print('Create dataset')
-
+    
+    # aug on loading 
     is_tf = False
     # is_tf = True 
+
+    # aug on line
+    is_aug = False 
+    # is_aug = True 
 
     try:
         dataset = CarvanaDataset(dir_img, dir_mask, img_scale,is_tf)
@@ -112,13 +115,15 @@ def train_net(net,
     ''')
 
     # 4. Set up the optimizer, the loss, the learning rate scheduler and the loss scaling for AMP
+    # optimizer = optim.Adam(net.parameters(), lr=learning_rate, betas=[0.9,0.99], weight_decay=1e-8) 
     optimizer = optim.RMSprop(net.parameters(), lr=learning_rate, weight_decay=1e-8, momentum=0.9)  # momentum=0.99
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=100)  # goal: maximize Dice score, 2
     grad_scaler = torch.cuda.amp.GradScaler(enabled=amp)
     # loss func
     CE_criterion = nn.CrossEntropyLoss()
     BCE_criterion = nn.BCEWithLogitsLoss()
-    criterion = BCE_criterion
+    MSE_criterion=nn.MSELoss()
+    # criterion = BCE_criterion
     global_step = 0
 
     # 5. Begin training
@@ -187,6 +192,10 @@ def train_net(net,
                     f'but loaded images have {images.shape[1]} channels. Please check that ' \
                     'the images are loaded correctly.'
 
+                # augmentation online
+                if is_aug:
+                    images, true_masks = tensor_img_mask_aug(images, true_masks)
+                
                 images = images.to(device=device, dtype=torch.float32)
                 true_masks = true_masks.to(device=device, dtype=torch.long) # tensor(n,c,w,h)
                 # print()
@@ -205,7 +214,7 @@ def train_net(net,
                 # true_masks_onehot = F.one_hot(true_masks.argmax(dim=1),
                 #                        net.n_classes).permute(0, 3, 1,
                 #                                               2).float()
-                true_masks_onehot = F.one_hot(torch.squeeze(true_masks,dim=1),net.n_classes).permute(0, 3, 1, 2).float()
+                true_masks_onehot = F.one_hot(torch.squeeze(true_masks,dim=1),net.n_classes).permute(0, 3, 1, 2).float().to(device=device)
 
                 # print()
                 # print('***********************************************')
@@ -224,7 +233,7 @@ def train_net(net,
                     #                    multiclass=True)
 
                     # sigmoid
-                    BCE_loss = criterion(masks_pred, true_masks_onehot)
+                    BCE_loss = BCE_criterion(masks_pred, true_masks_onehot)
 
                     # print()
                     # print('-------------------------------------------')
@@ -245,6 +254,7 @@ def train_net(net,
                     # print('masks_pred.shape: ',masks_pred.shape)
                     # print('masks_pred.numpy(): ',Tensor.cpu(masks_pred).detach().numpy())
                     masks_pred_softmax = F.softmax(masks_pred, dim=1).float()
+                    MSE_loss = MSE_criterion(masks_pred_softmax, true_masks_onehot)
                     # print()
                     # print('masks_pred_softmax.shape: ',masks_pred_softmax.shape)
                     # print('masks_pred_softmax.numpy(): ',Tensor.cpu(masks_pred_softmax).detach().numpy())
@@ -272,10 +282,19 @@ def train_net(net,
                     # diceloss=diceloss.requires_grad_()
                     BCE_dice_loss = BCE_loss + diceloss
                     CE_dice_loss = CE_loss + diceloss
+                    MSE_dice_loss = MSE_loss + diceloss
 
                     # change loss func here
                     # loss = CE_dice_loss
+                    # loss = MSE_dice_loss
                     loss = BCE_dice_loss
+                    # print(loss)
+
+                    # mini-batch
+                    # if global_step%10==1:
+                    #     optimizer.zero_grad(set_to_none=True)
+
+                    # grad_scaler.scale(loss).backward()  
                     # print(loss)
 
                     # loss=dice
@@ -283,24 +302,31 @@ def train_net(net,
                     #                    F.one_hot(true_masks, net.n_classes).permute(0, 3, 1, 2).float(),
                     #                    multiclass=True)
                     # print('---------------------------------------------------',Tensor.cpu(diceloss).numpy())
+
+                # if global_step%10==0:
+                #     grad_scaler.step(optimizer)
+                #     grad_scaler.update()
+
+                # SGD
                 optimizer.zero_grad(set_to_none=True)
-                grad_scaler.scale(loss).backward()  # change loss
+                grad_scaler.scale(loss).backward() 
                 grad_scaler.step(optimizer)
                 grad_scaler.update()
 
                 pbar.update(images.shape[0])
                 global_step += 1
-                epoch_loss += loss.item()  # change loss
+                epoch_loss += loss.item() 
                 experiment.log({
                     # 'BCE_loss': BCE_loss.item(),
                     # 'dice_loss': diceloss.item(),
                     'Train MIOU': miou_train,
                     'Train CE_dice_loss': CE_dice_loss.item(),
                     'Train BCE_dice_loss': BCE_dice_loss.item(),
+                    'Train MSE_dice_loss': MSE_dice_loss.item(),
                     # 'step': global_step,
                     # 'epoch': epoch
                 })
-                pbar.set_postfix(**{'loss (batch)': loss.item()})  # change loss
+                pbar.set_postfix(**{'loss (batch)': loss.item()})  
 
                 # Evaluation round    
                 super_para = 10
@@ -319,7 +345,10 @@ def train_net(net,
 
                     val_score = dice_onehot_nobg
                     miou_epoch=miou_eva
-                    # scheduler.step(val_score) # LR adjust
+                    
+                    # LR adjust
+                    # scheduler.step(val_score) 
+                    # scheduler.step()
 
                     num_class=0
                     for iou in class_iou_eva:
@@ -383,7 +412,7 @@ def get_args():
                         default=False,
                         help='Load model from a .pth file')
     parser.add_argument('--scale', '-s', type=float,
-                        default=0.1, # 0.5
+                        default=1, # 0.5
                         help='Downscaling factor of the images')
     parser.add_argument('--validation','-v',  dest='val', type=float,
                         default=10.0,
