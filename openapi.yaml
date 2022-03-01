@@ -1,0 +1,72 @@
+openapi: 3.0.1
+info:
+  title: "RESTful API for: HD.Wall"
+  description: "Wall detection service"
+  version: "1.0.0"
+servers:
+  - url: "http://8.142.65.9:8081/predictions"
+paths:
+  /wall_seg_unet:
+    post: 
+      description: "Get wall vector."
+      requestBody:
+        content:
+          image/*:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '200':
+          description: Prediction result for Wall
+          content:
+            application/json: 
+              schema:
+                type: array
+                required:
+                  - code
+                  - type
+                  - message
+                items:
+                  type: object
+                  properties:
+                    sPoint:
+                      type: array
+                      items: 
+                        type: integer
+                      example: [400.0, 527.5]
+                    ePoint:
+                      type: array
+                      items: 
+                        type: integer
+                      example: [358.0, 527.5]
+                    width:
+                      type: integer
+                      example: 20
+                    height:
+                      type: integer
+                      example: 40
+                    isStructural:
+                      type: boolean
+                      example: true
+
+
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - code
+                  - type
+                  - message
+                properties:
+                  code:
+                    type: integer
+                    description: Error code.
+                  type:
+                    type: string
+                    description: Error type.
+                  message:
+                    type: string
+                    description: Error message.

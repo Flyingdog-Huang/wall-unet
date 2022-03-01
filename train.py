@@ -10,7 +10,7 @@ import wandb
 from torch import optim
 from torch.utils.data import DataLoader, dataset, random_split
 from tqdm import tqdm
-from utils.data_loading import BasicDataset, CarvanaDataset, PimgDataset
+from utils.data_loading import BasicDataset, CarvanaDataset, PimgDataset, GridDataset
 from utils.dice_score import dice_loss
 from evaluate import evaluate
 from unet import UNet, UnetResnet50, hrnet48, Unet_p1, hrnet48_p1, UNet_fp16, UNet_fp4
@@ -19,12 +19,14 @@ import numpy as np
 from torchvision.transforms import transforms
 from utils.data_augmentation import tensor_img_mask_aug
 
+# path
 # dir_img = Path('./data/imgs/')
 # dir_mask = Path('./data/masks/')
 
 # dir_img = Path('../data/CVC-FP/')
 # dir_mask = Path('../data/CVC-FP/')
 
+# selflabel data set
 # dir_img = Path('../../../../data/floorplan/selflabel/imgs/')
 # dir_mask = Path('../../../../data/floorplan/selflabel/masks/')
 
@@ -35,16 +37,45 @@ from utils.data_augmentation import tensor_img_mask_aug
 # dir_img = Path('../../../../data/floorplan/CVC-FP/')
 # dir_mask = Path('../../../../data/floorplan/CVC-FP/masks/')
 
+# r3dcvc data set
 # dir_img = Path('../../../../data/floorplan/r3d_cvc/imgs/')
 # dir_mask = Path('../../../../data/floorplan/r3d_cvc/masks/')
 
+# car data set
 # dir_img = Path('../../../../data/floorplan/car/imgs/train/')
 # dir_mask = Path('../../../../data/floorplan/car/imgs/masks/')
+
+# private data set
+# dir_img = Path('../../../../data/floorplan/private/train/img/')
+# dir_mask = Path('../../../../data/floorplan/private/train/mask2/')
+# dir_img = Path('../../../../data/floorplan/JD_clean/img/')
+# dir_mask = Path('../../../../data/floorplan/JD_clean/mask/')
+
+# merge data set
+# dir_img = Path('../../../../data/floorplan/r3d_cvc_pri/imgs/')
+# dir_mask = Path('../../../../data/floorplan/r3d_cvc_pri/masks/')
 
 dir_img = Path('../data/test/img/')
 dir_mask = Path('../data/test/mask/')
 
 dir_checkpoint = Path('../checkpoints/')
+
+# training strategy
+# aug on loading 
+is_tf = False  
+# is_tf = True 
+
+# aug on line
+is_aug = False
+# is_aug = True  
+
+# shift window
+# is_sw = False
+is_sw = True  
+
+# multi-GPU
+# is_gpus = False
+is_gpus = True  
 
 
 def train_net(net,
@@ -60,19 +91,16 @@ def train_net(net,
     # print()
     # print('-------------------------------------------------------')
     # print('Create dataset')
-    
-    # aug on loading 
-    is_tf = False
-    # is_tf = True 
 
-    # aug on line
-    is_aug = False 
-    # is_aug = True 
-
-    try:
-        dataset = CarvanaDataset(dir_img, dir_mask, img_scale,is_tf)
-    except (AssertionError, RuntimeError):
-        dataset = BasicDataset(dir_img, dir_mask, img_scale,is_tf)
+    # load data
+    if is_sw:
+        # shift window crop
+        dataset = GridDataset(dir_img, dir_mask, img_scale,is_tf) 
+    else:
+        try:
+            dataset = CarvanaDataset(dir_img, dir_mask, img_scale,is_tf)
+        except (AssertionError, RuntimeError):
+            dataset = BasicDataset(dir_img, dir_mask, img_scale,is_tf)
     # dataset=PimgDataset(dir_img,dir_pimg,dir_mask,img_scale)
 
     # 2. Split into train / validation partitions
@@ -118,8 +146,13 @@ def train_net(net,
     # optimizer = optim.Adam(net.parameters(), lr=learning_rate, betas=[0.9,0.99], weight_decay=1e-8) 
     optimizer = optim.RMSprop(net.parameters(), lr=learning_rate, weight_decay=1e-8, momentum=0.9)  # momentum=0.99
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=100)  # goal: maximize Dice score, 2
+    # scheduler=optim.lr_scheduler.StepLR(optimizer,step_size=90,gamma=0.5)
     grad_scaler = torch.cuda.amp.GradScaler(enabled=amp)
+
     # loss func
+    # wall_weight=[0.33,0.67]
+    # wall_weight=[0.67,0.33]
+    # wall_weight=[0.1,0.9]
     CE_criterion = nn.CrossEntropyLoss()
     BCE_criterion = nn.BCEWithLogitsLoss()
     MSE_criterion=nn.MSELoss()
@@ -142,6 +175,7 @@ def train_net(net,
                 # print()
                 # print('-------------------------------------------------------')
                 # print('for batch ')
+                global_step += 1
                 images = batch['image']
                 true_masks = batch['mask']
 
@@ -187,8 +221,10 @@ def train_net(net,
                     # if global_step>2000:
                     #     optimizer = optim.RMSprop(net.parameters(), lr=0.0000001, weight_decay=1e-8, momentum=0.9)
 
-                assert images.shape[1] == net.n_channels, \
-                    f'Network has been defined with {net.n_channels} input channels, ' \
+                input_channels=net.module.n_channels if is_gpus else net.n_channels
+                output_classes=net.module.n_classes if is_gpus else net.n_classes
+                assert images.shape[1] == input_channels, \
+                    f'Network has been defined with {input_channels} input channels, ' \
                     f'but loaded images have {images.shape[1]} channels. Please check that ' \
                     'the images are loaded correctly.'
 
@@ -214,7 +250,7 @@ def train_net(net,
                 # true_masks_onehot = F.one_hot(true_masks.argmax(dim=1),
                 #                        net.n_classes).permute(0, 3, 1,
                 #                                               2).float()
-                true_masks_onehot = F.one_hot(torch.squeeze(true_masks,dim=1),net.n_classes).permute(0, 3, 1, 2).float().to(device=device)
+                true_masks_onehot = F.one_hot(torch.squeeze(true_masks,dim=1),output_classes).permute(0, 3, 1, 2).float().to(device=device)
 
                 # print()
                 # print('***********************************************')
@@ -262,7 +298,7 @@ def train_net(net,
                     # print()
                     # print('masks_pred_max.shape: ',masks_pred_max.shape)
                     # print('masks_pred_max.numpy(): ',Tensor.cpu(masks_pred_max).detach().numpy())
-                    mask_pred_onehot = F.one_hot(masks_pred_max, net.n_classes).permute(0, 3, 1, 2).float()
+                    mask_pred_onehot = F.one_hot(masks_pred_max, output_classes).permute(0, 3, 1, 2).float()
                     # MIOU no bg
                     class_iou_train, miou_train = MIOU(mask_pred_onehot[:,1:,...], true_masks_onehot[:,1:,...])
                     num_class=0
@@ -314,7 +350,6 @@ def train_net(net,
                 grad_scaler.update()
 
                 pbar.update(images.shape[0])
-                global_step += 1
                 epoch_loss += loss.item() 
                 experiment.log({
                     # 'BCE_loss': BCE_loss.item(),
@@ -335,7 +370,8 @@ def train_net(net,
                     # print('-------------------------------------------------------')
                     # print('Evaluation round ')
                     histograms = {}
-                    for tag, value in net.named_parameters():
+                    parameters=net.module.named_parameters()  if is_gpus else  net.named_parameters()
+                    for tag, value in parameters:
                         tag = tag.replace('/', '.')
                         histograms['Weights/' + tag] = wandb.Histogram(value.data.cpu())
                         histograms['Gradients/' + tag] = wandb.Histogram(value.grad.data.cpu())
@@ -376,22 +412,26 @@ def train_net(net,
                     })
     
         # # just each epoch
-        # if save_checkpoint:
-        #     Path(dir_checkpoint).mkdir(parents=True, exist_ok=True)
-        #     torch.save(
-        #         net.state_dict(),
-        #         str(dir_checkpoint /
-        #             'checkpoint_epoch{}_r3dcvc_LR5_unetres_miou{}.pth'.format(epoch, miou_epoch)))
-        #     # logging.info(f'Checkpoint {epoch + 1} saved!')
-        #     logging.info(f'Checkpoint {epoch} saved!')
+        if save_checkpoint:
+            Path(dir_checkpoint).mkdir(parents=True, exist_ok=True)
+            model_name=str(dir_checkpoint /
+                    'checkpoint_epoch{}_priclean_sw512_BCE_unet_iou{}.pth'.format(epoch, miou_epoch))
+            if is_gpus:
+                torch.save(net.module.state_dict(),model_name)
+            else:
+                torch.save(net.state_dict(),model_name) # single GPU
+            # logging.info(f'Checkpoint {epoch + 1} saved!')
+            logging.info(f'Checkpoint {epoch} saved!')
     
     # just save the last one
     if save_checkpoint:
         Path(dir_checkpoint).mkdir(parents=True, exist_ok=True)
-        torch.save(
-            net.state_dict(),
-            str(dir_checkpoint /
-                'checkpoint_epoch{}_unet_test_miou{}.pth'.format(epochs, miou_epoch)))
+        final_model_name=str(dir_checkpoint /
+                'checkpoint_epoch{}_priclean_sw512_BCE_unet_iou{}.pth'.format(epochs, miou_epoch))
+        if is_gpus:
+            torch.save(net.module.state_dict(),final_model_name)
+        else:
+            torch.save(net.state_dict(),final_model_name)# single GPU
         # logging.info(f'Checkpoint {epoch + 1} saved!')
         logging.info(f'Checkpoint {epochs} saved!')
 
@@ -426,17 +466,23 @@ def get_args():
 
 if __name__ == '__main__':
     args = get_args()
+    logging.getLogger().setLevel(logging.INFO)
+    
+    logging.info('aug on loading : {}'.format(is_tf)) 
+    logging.info('aug on line : {}'.format(is_aug)) 
+    logging.info('is use shift window : {}'.format(is_sw)) 
+    logging.info('is use multi-GPUs : {}'.format(is_gpus)) 
 
     logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
     cuda_name = 'cuda' # 'cuda:1'
     device = torch.device(cuda_name if torch.cuda.is_available() else 'cpu')
-    logging.info(f'Using device {device}')
+    logging.info(f'Main device {device}')
 
     # Change here to adapt to your data
     # n_channels=3 for RGB images
     # n_classes is the number of probabilities you want to get per pixel
 
-    net = UNet(n_channels=3, n_classes=3, bilinear=True)
+    net = UNet(n_channels=3, n_classes=2, bilinear=True)
     # net = UnetResnet50(n_channels=3, n_classes=2)
     # net =hrnet48(n_channels=3, n_classes=2)
     # net =Unet_p1(n_channels=3, n_classes=2)
@@ -454,6 +500,8 @@ if __name__ == '__main__':
         net.load_state_dict(torch.load(args.load, map_location=device))
         logging.info(f'Model loaded from {args.load}')
 
+    if is_gpus:
+        net=torch.nn.DataParallel(net,device_ids=[0,1])
     net.to(device=device)
     try:
         train_net(net=net,
@@ -465,6 +513,9 @@ if __name__ == '__main__':
                   val_percent=args.val / 100,
                   amp=args.amp)
     except KeyboardInterrupt:
-        torch.save(net.state_dict(), 'INTERRUPTED.pth')
+        if is_gpus:
+            torch.save(net.module.state_dict(), 'INTERRUPTED.pth')
+        else:
+            torch.save(net.state_dict(), 'INTERRUPTED.pth')
         logging.info('Saved interrupt')
         sys.exit(0)

@@ -16,7 +16,8 @@ CVC_FP_className_list = [
     'Window'
 ]
 
-window_size=1024
+window_size=512 
+# window_size=1024
 thred_ratio=0.01
 
 # 自适应图像滑动分块
@@ -132,9 +133,13 @@ class GridDataset(Dataset):
                 x1,x2,y1,y2=win_points
                 grid_img=img[y1:y2,x1:x2,:]
                 grid_mask=mask[y1:y2,x1:x2,:]
-                if grid_mask.sum()/(255*3)>thred_low and grid_mask.sum()/(255*3)<thred_high:
-                    self.grid_img.append(grid_img)
-                    self.grid_mask.append(grid_mask)
+                # no filter
+                self.grid_img.append(grid_img)
+                self.grid_mask.append(grid_mask)
+                # data filter
+                # if grid_mask.sum()/(255*3)>thred_low and grid_mask.sum()/(255*3)<thred_high:
+                #     self.grid_img.append(grid_img)
+                #     self.grid_mask.append(grid_mask)
                 # else:
                 #     if np.random.rand()>0.5:
                 #         self.grid_img.append(grid_img)
@@ -189,8 +194,9 @@ class BasicDataset(Dataset):
         #     scale=0.1
 
         # resize <1000 and keep scale
-        scale = 1/(max(h,w)//1000+1)
+        # scale = 1/(max(h,w)//1000+1)
         # logging.info('scale: {}'.format(scale))
+
         newW, newH = int(scale * w), int(scale * h)
         # logging.info('newW: {}, newH: {}'.format(newW, newH))
 
