@@ -1,34 +1,299 @@
 import cv2
 import numpy as np
-from utils.wall_vector import findMaxMIOU, campIOU, isin_cntflag
+from utils.wall_vector import findMaxMIOU, campIOU, isin_cntflag, wall_vector, imgIOU, is_K_same
 import random
 import torch
 from torch.functional import Tensor
+from os import listdir
+from os.path import splitext
 
-# test tensor
-class_num=2
-# wall_weight=[1,1]
-wall_weight=[0.67,0.33]
-loss_weight=torch.ones([class_num,3,3])
-# print('loss_weight',loss_weight[0,0,:,:])
-for i in range(class_num):
-    loss_weight[i,:,:]=loss_weight[i,:,:]*wall_weight[i]
-print('loss_weight',loss_weight)
-pri=torch.ones([1,class_num,3,3])
-print('pri',pri)
-label=torch.full([1,class_num,3,3],1.5)
-print('label',label)
-criterion = torch.nn.BCEWithLogitsLoss()
-loss=criterion(pri,label)
-print('loss',loss)
-criterion = torch.nn.BCEWithLogitsLoss(pos_weight=loss_weight)
-loss=criterion(pri,label)
-print('loss',loss)
-s=label.shape
-print('s',s[1:])
-test_tensor=torch.ones(s[1:])
-print('test_tensor',test_tensor)
-print('test_tensor.shape',test_tensor.shape)
+# path
+vector_path='../vector_test/'
+vector_img_path='../vector_test/img/'
+vector_imgo_path='../vector_test/img_o/'
+vector_mask_path='../vector_test/mask/'
+vector_pre_path='../vector_test/predict/'
+vector_prePost_path='../vector_test/pre_post/'
+vector_vec_path='../vector_test/vector/'
+vector_wallLines_path='../vector_test/wall_lines/'
+vector_allLines_path='../vector_test/all_lines/'
+
+# get img name
+img_name_list=[splitext(file)[0] for file in listdir(vector_img_path) if file.endswith('.png') or file.endswith('.jpg')]
+# print('img_name_list',img_name_list)
+
+def post_pre(img_name_list):
+    # reduce leaky pix
+    for name in img_name_list:
+        pre_name=name+'_pre.png'
+        pre=cv2.imread(vector_pre_path+pre_name)
+        pre_post=pre.copy()
+        # close operation 
+        pre_post=cv2.cvtColor(pre_post,cv2.COLOR_BGR2GRAY)
+        close_kernel=np.ones((3,3),np.uint8)
+        pre_post=cv2.morphologyEx(pre_post, cv2.MORPH_CLOSE, close_kernel, iterations=1)
+        
+        # # fill img
+        # h,w=pre.shape[:2]
+        # mask=np.zeros((h+2,w+2),np.uint8)
+
+        # write pre post
+        cv2.imwrite(vector_prePost_path+pre_name,pre_post)
+
+def wall_line_img_mask_pre(img,mask,pre,wall_lines,color=(0,0,255),thick=1):
+    wall_line_img=img.copy()
+    wall_line_mask=mask.copy()
+    wall_line_pre=pre.copy()
+    for wall_line in wall_lines:
+        x1,y1,x2,y2=wall_line
+        p1=(int(wall_line[0]),int(wall_line[1]))
+        p2=(int(wall_line[2]),int(wall_line[3]))
+        # print('type(wall_line_img)',type(wall_line_img))
+        # print('type(wall_line_pre)',type(wall_line_pre))
+        cv2.line(wall_line_img,p1,p2,color,thick)
+        cv2.line(wall_line_mask,p1,p2,color,thick)
+        cv2.line(wall_line_pre,p1,p2,color,thick)
+
+        # direct line
+        detact_length=8
+        p3=(int(x1+x2)//2,int(y1+y2)//2)
+        dx=0
+        dy=detact_length
+        if y1!=y2:
+            k=(x1-x2)/(y2-y1)
+            dx=((detact_length**2)/(1+k**2))**0.5
+            dy=dx*k
+        x_d=p3[0]-dx
+        y_d=p3[1]-dy
+        p4=(int(x_d),int(y_d))
+        x_d=p3[0]+dx
+        y_d=p3[1]+dy
+        p5=(int(x_d),int(y_d))
+        color_direc=(255,0,0)
+        # draw all direc lines
+        cv2.line(wall_line_img,p3,p4,color_direc,thick)
+        cv2.line(wall_line_mask,p3,p4,color_direc,thick)
+        cv2.line(wall_line_pre,p3,p4,color_direc,thick)
+
+        cv2.line(wall_line_img,p3,p5,color_direc,thick)
+        cv2.line(wall_line_mask,p3,p5,color_direc,thick)
+        cv2.line(wall_line_pre,p3,p5,color_direc,thick)
+    return wall_line_img,wall_line_mask, wall_line_pre
+
+def get_img_data(name):
+    # img name
+    img_name=name+'.png'
+    mask_name=name+'_mask.png'
+    pre_name=name+'_pre.png'
+    # load img data
+    img=cv2.imread(vector_img_path+img_name)
+    mask=cv2.imread(vector_mask_path+mask_name)
+    pre=cv2.imread(vector_pre_path+pre_name)
+    return [img_name,img], [mask_name,mask], [pre_name,pre]
+
+def draw_all_lines(name,color=(0,0,255),thick=1):
+    # img name
+    img_name=name+'.png'
+    mask_name=name+'_mask.png'
+    pre_name=name+'_pre.png'
+
+    # load img data
+    img=cv2.imread(vector_img_path+img_name)
+    img_o=cv2.imread(vector_imgo_path+img_name)
+    mask=cv2.imread(vector_mask_path+mask_name)
+    pre=cv2.imread(vector_pre_path+pre_name)
+
+    # get resize scale
+    img_shape=img_o.shape[:2]
+    resize_scale=max(img_shape)//500
+
+    # process img
+    img_gray=cv2.cvtColor(img_o,cv2.COLOR_BGR2GRAY)
+
+    # Fast LSD
+    lsd_dec=cv2.ximgproc.createFastLineDetector()
+    lines_fastLSD=lsd_dec.detect(img_gray)
+
+    # draw all lines
+    for line in lines_fastLSD:
+        x1,y1,x2,y2=line[0]
+
+        x1=x1//resize_scale
+        y1=y1//resize_scale
+        x2=x2//resize_scale
+        y2=y2//resize_scale
+
+        p1=(int(x1),int(y1))
+        p2=(int(x2),int(y2))
+
+        # draw all lines
+        cv2.line(img,p1,p2,color,thick)
+        cv2.line(mask,p1,p2,color,thick)
+        cv2.line(pre,p1,p2,color,thick)
+
+        # direct line
+        detact_length=8
+        p3=(int(x1+x2)//2,int(y1+y2)//2)
+        dx=0
+        dy=detact_length
+        if y1!=y2:
+            k=(x1-x2)/(y2-y1)
+            dx=((detact_length**2)/(1+k**2))**0.5
+            dy=dx*k
+        x_d=p3[0]-dx
+        y_d=p3[1]-dy
+        p4=(int(x_d),int(y_d))
+        x_d=p3[0]+dx
+        y_d=p3[1]+dy
+        p5=(int(x_d),int(y_d))
+        color_direc=(255,0,0)
+        # draw all direc lines
+        cv2.line(img,p3,p4,color_direc,thick)
+        cv2.line(mask,p3,p4,color_direc,thick)
+        cv2.line(pre,p3,p4,color_direc,thick)
+        cv2.line(img,p3,p5,color_direc,thick)
+        cv2.line(mask,p3,p5,color_direc,thick)
+        cv2.line(pre,p3,p5,color_direc,thick)
+
+
+    # write all lines
+    cv2.imwrite(vector_allLines_path+img_name,img)
+    cv2.imwrite(vector_allLines_path+mask_name,mask)
+    cv2.imwrite(vector_allLines_path+pre_name,pre)
+
+def vector_img(img_name_list):
+    # post vector 
+    for name in img_name_list:
+        print('name',name)
+        # img name
+        img_name=name+'.png'
+        mask_name=name+'_mask.png'
+        pre_name=name+'_pre.png'
+        vec_name=name+'_vec.png'
+
+        # load img data
+        img=cv2.imread(vector_img_path+img_name)
+        img_o=cv2.imread(vector_imgo_path+img_name)
+        mask=cv2.imread(vector_mask_path+mask_name)
+        pre=cv2.imread(vector_pre_path+pre_name)
+        # pre=cv2.imread(vector_prePost_path+pre_name)
+
+        # post vector
+        vec,wall_lines=wall_vector(img,img_o,pre)
+        cv2.imwrite(vector_vec_path+vec_name,vec)
+
+        # show wall lines
+        print('---------------write wall lines img--------------------')
+        wall_line_img,wall_line_mask, wall_line_pre=wall_line_img_mask_pre(img,mask,pre,wall_lines)
+        cv2.imwrite(vector_wallLines_path+img_name,wall_line_img)
+        cv2.imwrite(vector_wallLines_path+mask_name,wall_line_mask)
+        cv2.imwrite(vector_wallLines_path+pre_name,wall_line_pre)
+
+    print('---------------finish all--------------------')
+
+def test_dir_iou(img_name_list,dir_path,dir_hz):
+    miou=0
+    for name in img_name_list:
+        print('name',name)
+        mask_name=name+'_mask.png'
+        dir_name=name+dir_hz
+        mask=cv2.imread(vector_mask_path+mask_name)
+        dir_img=cv2.imread(dir_path+dir_name)
+        iou=imgIOU(mask,dir_img)
+        print('IOU',iou)
+        miou+=iou
+    print('dir_path MIOU:',miou/len(img_name_list))
+    print('---------------finish all--------------------')
+
+def test_mask_vector_iou(img_name_list):
+    miou=0
+    # test imgs iou
+    for name in img_name_list:
+        print('name',name)
+        # img name
+        mask_name=name+'_mask.png'
+        vec_name=name+'_vec.png'
+
+        # load img data
+        mask=cv2.imread(vector_mask_path+mask_name)
+        vec=cv2.imread(vector_vec_path+vec_name)
+
+        # iou
+        iou=imgIOU(mask,vec)
+        print('IOU',iou)
+        miou+=iou
+    print('vector MIOU:',miou/len(img_name_list))
+    print('---------------finish all--------------------')
+
+def test_mask_pre_iou(img_name_list):
+    miou=0
+    # test imgs iou
+    for name in img_name_list:
+        print('name',name)
+        # img name
+        mask_name=name+'_mask.png'
+        pre_name=name+'_pre.png'
+
+        # load img data
+        mask=cv2.imread(vector_mask_path+mask_name)
+        pre=cv2.imread(vector_pre_path+pre_name)
+
+        # iou
+        iou=imgIOU(mask,pre)
+        print('IOU',iou)
+        miou+=iou
+    print('pre MIOU:',miou/len(img_name_list))
+    print('---------------finish all--------------------')
+
+# draw all img all lines
+# for name in img_name_list:
+#     draw_all_lines(name)
+
+# post_pre(img_name_list) # post pre
+# test_mask_pre_iou(img_name_list) # test pre MIOU
+# dir_hz='_pre.png'
+# test_dir_iou(img_name_list,vector_prePost_path,dir_hz) # test dir_path MIOU
+
+# vector_img(img_name_list) # genera vector
+test_mask_vector_iou(img_name_list) # test vector MIOU
+
+# # test if-for 
+# a=10
+# b=1
+# for i in range(a,b):
+#     # if i%3==0 and i%5==0 and i%7==0:
+#         print(i)
+#         # if i//500>=1:break
+
+# # test is K same func
+# k1=1
+# k2=-1
+# print(is_K_same(k1,k2))
+
+# # test tensor
+# class_num=2
+# # wall_weight=[1,1]
+# wall_weight=[0.67,0.33]
+# loss_weight=torch.ones([class_num,3,3])
+# # print('loss_weight',loss_weight[0,0,:,:])
+# for i in range(class_num):
+#     loss_weight[i,:,:]=loss_weight[i,:,:]*wall_weight[i]
+# print('loss_weight',loss_weight)
+# pri=torch.ones([1,class_num,3,3])
+# print('pri',pri)
+# label=torch.full([1,class_num,3,3],1.5)
+# print('label',label)
+# criterion = torch.nn.BCEWithLogitsLoss()
+# loss=criterion(pri,label)
+# print('loss',loss)
+# criterion = torch.nn.BCEWithLogitsLoss(pos_weight=loss_weight)
+# loss=criterion(pri,label)
+# print('loss',loss)
+# s=label.shape
+# print('s',s[1:])
+# test_tensor=torch.ones(s[1:])
+# print('test_tensor',test_tensor)
+# print('test_tensor.shape',test_tensor.shape)
 
 # wall_weight=Tensor(wall_weight)
 # print('wall_weight',wall_weight)

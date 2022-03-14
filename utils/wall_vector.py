@@ -2,9 +2,28 @@ import cv2
 import numpy as np
 import math
 import json
+import time
 
-
+# global para
 max_k=99999 # max 斜率
+# save wall-lines k
+K_map=None
+# save no(1,2,3...) of wall line, 0-not wall
+line_map=None
+
+def imgIOU(label,predict):
+    '''
+    label:[x,y,3]-uint8(0/255)
+    predict:[x,y,3]-uint8(0/255)
+    return:IOU-float
+    '''
+    label=label[:,:,0]/255
+    predict=predict[:,:,0]/255
+    iou_up=np.sum(label*predict)
+    iou_down=np.sum(label)+np.sum(predict)-iou_up
+    iou=iou_up/(iou_down+0.0000001)
+    return iou
+
 
 def cnt2img(cnt,x,y):
     new_mask=np.zeros((y,x),np.uint8)
@@ -245,597 +264,900 @@ def findMaxMIOU(cnt,k_line,thr_iou=0.7,max_times=20):
     final_cnts=[cnt] if fa == None else split_cnt(cnt,fa,fb,fc,cnt_flag)
     return final_cnts  # , min_cnts, now_iou,cnt_flag
 
-def wall_vector(img,img_pre):
+def is_K_same(k1,k2):
+    # 定义斜率K的相似性
+    k1=k1 if k1!=np.inf else 999999
+    k2=k2 if k2!=np.inf else 999999
+    # 夹角在10°内
+    tan_a=(k1-k2)/(1+k1*k2+0.0001)
+    if tan_a**2<=math.tan(10/180*math.pi)**2:
+        return True
+    return False
 
-        # process img
-        img_gray=cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
-
-        # Fast LSD
-        lsd_dec=cv2.ximgproc.createFastLineDetector()
-        lines_fastLSD=lsd_dec.detect(img_gray)
-
-        # logger.warning('num of lines in source data: {}'.format(len(lines_fastLSD)))
-        
-        # filter lines
-        img_wall=img_pre.copy()
-
-        # get BINARY prediction img
-        img_bool=img_pre.copy()
-        img_bool=cv2.cvtColor(img_bool, cv2.COLOR_BGR2GRAY)#灰化
-        _,img_bool=cv2.threshold(img_bool,127,1,cv2.THRESH_BINARY)#二值化
-
-        # get img size
-        y,x=img_bool.shape
-
-        # save wall lines , direction and k
-        wall_lines=[]
-        direc_lines=[]
-        k_lines=[]
-
-        # process condition
-        a1=2 # fusion dis
-        a2=8 # detection dis
-
-        # init detection position
+def find_wall_lines(img,img_pre,
+                    detact_length=8,
+                    min_line_length=2,
+                    exist_thr=0.001,
+                    diff_thr=0.3
+                    ):
+    '''
+    find lines on img and filter wall lines by pre
+    '''
+    # save wall lines , direction and k
+    wall_lines=[]
+    direc_lines=[]
+    k_lines=[]
+    # process img
+    img_gray=cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
+    # Fast LSD
+    lsd_dec=cv2.ximgproc.createFastLineDetector()
+    lines_fastLSD=lsd_dec.detect(img_gray)
+    # get BINARY prediction img
+    img_bool=img_pre.copy()
+    img_bool=cv2.cvtColor(img_bool, cv2.COLOR_BGR2GRAY)#灰化
+    _,img_bool=cv2.threshold(img_bool,127,1,cv2.THRESH_BINARY)#二值化
+    # get img size
+    y,x=img_bool.shape
+    # K feature map
+    K_map=np.zeros((y,x),np.float16) # save k
+    # save no(1,2,3...) of wall line, 0-not wall
+    line_map=np.zeros((y,x),np.uint16) 
+    # NO. of wall line
+    no_line=0
+    # filter wall lines
+    for line in lines_fastLSD:
+        x1,y1,x2,y2=line[0]
+        # filter dx or dy <= min_line_length
+        if (x1-x2)**2<=min_line_length**2 and (y1-y2)**2<=min_line_length**2:
+            continue
+        x0,x3,x4,x5,=x1,x1,x1,x1
+        y0,y3,y4,y5,=y1,y1,y1,y1
         dx=0
-        dy=0
-
-        # wall area condition
-        thr_mp=0.01 # exist condition
-        thr_dis=0.3 # diff condition
-
-        # K feature map
-        K_map=np.zeros((y,x),np.float16) # save k
-        line_map=np.zeros((y,x),np.uint16) # save no(1,2,3...) of wall line, 0-not wall
-
-        # NO. of wall line
-        no_line=0
-
-        # 水平斜率阈值
-        k_max_horizontal=0.177
-        k_min_horizontal=-0.177
-
-        # 竖直斜率阈值
-        k_max_vertical=5.76
-        k_min_vertical=-5.76
-
-        # 定义斜率K的相似性
-        def is_K_same(k1,k2):
-            k1=k1 if k1!=np.inf else 999999
-            k2=k2 if k2!=np.inf else 999999
-            # 夹角在10°内
-            tan_a=(k1-k2)/(1+k1*k2+0.0001)
-            if tan_a**2<=math.tan(10/180*math.pi)**2:
-                return True
-            return False
-
-        # filter wall lines
-        for line in lines_fastLSD:
-            x1,y1,x2,y2=line[0]
-            if (x1-x2)**2<=a1**2 and (y1-y2)**2<=a1**2:
-                continue
-            x0,x3,x4,x5,=x1,x1,x1,x1
-            y0,y3,y4,y5,=y1,y1,y1,y1
+        dy=detact_length
+        if y1==y2:
             dx=0
-            dy=a2
-            if y1==y2:
-                dx=0
-                dy=a2
+            dy=detact_length
+        else:
+            k=(x1-x2)/(y2-y1)
+            dx=((detact_length**2)/(1+k**2))**0.5
+            dy=dx*k
+        x5=x1-dx 
+        y5=y1-dy
+        x4=x2-dx
+        y4=y2-dy
+
+        x3=x1+dx
+        y3=y1+dy
+        x0=x2+dx
+        y0=y2+dy
+
+        x0,x1,x2,x3,x4,x5,y0,y1,y2,y3,y4,y5=int(x0),int(x1),int(x2),int(x3),int(x4),int(x5),int(y0),int(y1),int(y2),int(y3),int(y4),int(y5)
+
+        # filter line
+        rec1=[[x1,y1],[x2,y2],[x4,y4],[x5,y5]]
+        rec2=[[x1,y1],[x2,y2],[x0,y0],[x3,y3]]
+        cnts=[]
+        cnts.append(rec1)
+        cnts.append(rec2)
+        rec1=np.array(rec1)[:,np.newaxis,:]
+        rec2=np.array(rec2)[:,np.newaxis,:]
+
+        # create mask
+        mask1=np.zeros((y,x),np.uint8)
+        cv2.drawContours(mask1,rec1[np.newaxis,:,:,:],0, (255), -1)
+        mask2=np.zeros((y,x),np.uint8)
+        cv2.drawContours(mask2,rec2[np.newaxis,:,:,:],0, (255), -1)
+        #二值化
+        _,mask1_b=cv2.threshold(mask1,127,1,cv2.THRESH_BINARY)
+        _,mask2_b=cv2.threshold(mask2,127,1,cv2.THRESH_BINARY)
+        # 计算探测区域 wall_area/detect_area 百分比
+        mask1_area=np.sum(mask1_b*img_bool)
+        mask2_area=np.sum(mask2_b*img_bool)
+        mask_area=max(mask1_area,mask2_area)
+        mask1_p=mask1_area/np.sum(mask1_b)
+        mask2_p=mask2_area/np.sum(mask2_b)
+        mask_p=max(mask1_p,mask2_p)
+        # wall lines bool
+        if (mask1_p+mask2_p)>(exist_thr*2) and ((mask1_p-mask2_p)/mask_p)**2>(diff_thr**2) and mask_area>=20: 
+            no_line+=1 # num of wall line
+            # get k - wall line
+            k_wallLine=None
+            if x1==x2:
+                k_wallLine=max_k
+            elif y1==y2:
+                k_wallLine=0
             else:
-                k=(x1-x2)/(y2-y1)
-                dx=((a2**2)/(1+k**2))**0.5
-                dy=dx*k
-            x5=x1-dx 
-            y5=y1-dy
-            x4=x2-dx
-            y4=y2-dy
-
-            x3=x1+dx
-            y3=y1+dy
-            x0=x2+dx
-            y0=y2+dy
-
-            x0,x1,x2,x3,x4,x5,y0,y1,y2,y3,y4,y5=int(x0),int(x1),int(x2),int(x3),int(x4),int(x5),int(y0),int(y1),int(y2),int(y3),int(y4),int(y5)
-
-            # filter line
-            rec1=[[x1,y1],[x2,y2],[x4,y4],[x5,y5]]
-            rec2=[[x1,y1],[x2,y2],[x0,y0],[x3,y3]]
-            cnts=[]
-            cnts.append(rec1)
-            cnts.append(rec2)
-            rec1=np.array(rec1)[:,np.newaxis,:]
-            rec2=np.array(rec2)[:,np.newaxis,:]
-
-            # create mask
-            mask1=np.zeros((y,x),np.uint8)
-            cv2.drawContours(mask1,rec1[np.newaxis,:,:,:],0, (255), -1)
-            mask2=np.zeros((y,x),np.uint8)
-            cv2.drawContours(mask2,rec2[np.newaxis,:,:,:],0, (255), -1)
-            #二值化
-            _,mask1_b=cv2.threshold(mask1,127,1,cv2.THRESH_BINARY)
-            _,mask2_b=cv2.threshold(mask2,127,1,cv2.THRESH_BINARY)
-            # 计算探测区域 wall_area/detect_area 百分比
-            mask1_area=np.sum(mask1_b*img_bool)
-            mask2_area=np.sum(mask2_b*img_bool)
-            mask_area=max(mask1_area,mask2_area)
-            mask1_p=mask1_area/np.sum(mask1_b)
-            mask2_p=mask2_area/np.sum(mask2_b)
-            mask_p=max(mask1_p,mask2_p)
-            if (mask1_p+mask2_p)>(thr_mp*2) and ((mask1_p-mask2_p)/mask_p)**2>(thr_dis**2) and mask_area>=20: 
-                no_line+=1 # num of wall line
-                # get k - wall line
-                k_wallLine=None
-                if x1==x2:
-                    k_wallLine=max_k
-                elif y1==y2:
-                    k_wallLine=0
-                else:
-                    k_wallLine=(line[0][1]-line[0][3])/(line[0][0]-line[0][2])  # (y1-y2)/(x1-x2)
-                k_lines.append(k_wallLine) # 压入斜率K
-                # bool wall direction
-                t1=1 if mask2_p>mask1_p else -1
-                t2=1 if mask1_p>mask2_p else -1
-                # draw line flag on line map
-                # 此段wall line的轨迹
-                line_flg=np.zeros((y,x),np.uint8)
-                cv2.line(line_flg, (x2, y2), (x1,y1),1, 1)
-                # ROI
-                x_min=min(x1,x2)
-                x_max=max(x1,x2)
-                y_min=min(y1,y2)
-                y_max=max(y1,y2)
-                # line_map基于wall line轨迹，保存全局wall line的序号NO，与wall_line中保存的wall line坐标的序号一一对应
-                # K_map 基于wall line轨迹，保存全局wall line的斜率K值，如果有交叉，以长度长的为准
-                for y_line in range(y_min,y_max+1):
-                    for x_line in range(x_min,x_max+1):
-                        if line_flg[y_line,x_line]==1:
-                            # 如果轨迹为空，则直接写入NO和K
-                            if line_map[y_line,x_line]==0:
-                                line_map[y_line,x_line]=no_line
-                                # print('k',k)
-                                K_map[y_line,x_line]=k_wallLine
-                            # 若有交叉，以长度长的为准
-                            else:
-                                # keep longer line k
-                                l_now=(x1-x2)**2+(y1-y2)**2
-                                no_befor=line_map[y_line,x_line]-1
-                                l_befor=(wall_lines[no_befor][0]-wall_lines[no_befor][2])**2+(wall_lines[no_befor][1]-wall_lines[no_befor][3])**2
-                                if l_now>l_befor:
-                                    line_map[y_line,x_line]=no_line
-                                    K_map[y_line,x_line]=k_wallLine
-                # add wall lines
-                wall_line=[x1,y1,x2,y2]
-                wall_lines.append(wall_line)
-                # get direction
-                direc_line=[x1,y1,x5,y5] if mask1_p>mask2_p else [x1,y1,x3,y3]
-                direc_lines.append(direc_line)
-
-        print('---------------finish filter wall lines--------------------')
-
-        #### prediction pix 分类阶段 ####
-        # save new no(1,2,3...) of wall line, 0-not wall
-        new_line_map=np.zeros((y,x),np.uint16) 
-        # save distance from pix point to wall lines
-        dis_k_line_map=np.zeros((y,x),np.float16)
-        # 保存对应wall line的长度
-        len_dis_k_line_map=np.zeros((y,x),np.float16)
-        
-        # ************most time-consuming********************
-        # 点距探测
-        def point_detect(x_point,y_point):
-            r_detect=1
-            is_detected=False
-            while dis_k_line_map[y_point,x_point]==0:
-                for y_detect_r in range(-r_detect,r_detect+1):
-                    y_detect=y_point+y_detect_r
-                    if y_detect<0:y_detect=0
-                    if y_detect>=y:y_detect=y-1
-                    for x_detect_r in range(-r_detect,r_detect+1):
-                        x_detect=x_point+x_detect_r
-                        if x_detect<0:x_detect=0
-                        if x_detect>=x:x_detect=x-1
-                        # 若探测到wall line 
-                        if line_map[y_detect,x_detect]>0:
-                            dis_k_line_map[y_point,x_point]=r_detect # 赋值距离map
-                            no_dis_wall_line=line_map[y_detect,x_detect]-1
-                            this_wall_line=wall_lines[no_dis_wall_line]
-                            this_len=((this_wall_line[0]-this_wall_line[2])**2+(this_wall_line[1]-this_wall_line[3])**2)**0.5
-                            len_dis_k_line_map[y_point,x_point]=this_len
-                            new_line_map[y_point,x_point]=line_map[y_detect,x_detect] # 赋值生长的new line map
-                            K_map[y_point,x_point]=k_lines[line_map[y_detect,x_detect]-1] # 赋值生长的K map
-                            is_detected=True
-                
-                # 若未探测到则增大探测半径继续探测
-                if is_detected is False:
-                    r_detect+=1
-
-        # classify each prediction pix
-        for yi in range(y):
-            for xi in range(x):
-                # 若此点为prediction pix, 且不为wall line 轨迹
-                if img_bool[yi,xi]==1 and line_map[yi,xi]==0:
-                    point_detect(xi,yi)
-
-        print('---------------finish classify each prediction pix--------------------')
-        # ************most time-consuming********************
-
-        #### k feature map充填阶段 ####
-        # wall line 方向的探测区域长度 
-        l_d=20
-        # save the flag that pix is or not filled by same lines
-        is_fill_by_same_line=np.zeros((y,x),np.uint8) 
-        # create k map
-        for i in range(len(wall_lines)):
-            x1,y1,x2,y2=wall_lines[i] # 提取wall line坐标
-            k_line=k_lines[i] # 此条wall line的斜率K
-            x1,y1,x_d,y_d=direc_lines[i] # 方向线坐标，以point1为起点
-            len_wall_line=((x1-x2)**2+(y1-y2)**2)**0.5
-            # draw wall lines
-            # 绘制原始wall line
-            cv2.line(img_wall, (x2, y2), (x1,y1),(0,0,255), 1)
-            new_no=i+1 # 此时的wall line编号
+                k_wallLine=(line[0][1]-line[0][3])/(line[0][0]-line[0][2])  # (y1-y2)/(x1-x2)
+            k_lines.append(k_wallLine) # 压入斜率K
+            # bool wall direction
+            t1=1 if mask2_p>mask1_p else -1
+            t2=1 if mask1_p>mask2_p else -1
             # draw line flag on line map
-            # 绘制这条wall line 的轨迹（不水平和不竖直的wall line需要以此为生长种子）
+            # 此段wall line的轨迹
             line_flg=np.zeros((y,x),np.uint8)
             cv2.line(line_flg, (x2, y2), (x1,y1),1, 1)
-            # 分为：水平、垂直和其他情况分类处理
-            # ROI区域
-            y_min=min(y1,y2)
-            y_max=max(y1,y2)
+            # ROI
             x_min=min(x1,x2)
             x_max=max(x1,x2)
-            # 垂直wall line -- x水平扩展
-            if x1==x2: 
-                # 获取X的方向
-                k_direc=1 if x_d>x1 else -1
-                for y_line in range(y_min,y_max+1):
-                    for x_line in range(x_min,x_max+1):
-                        # 若存在wall line轨迹，则进行探测
-                        if line_flg[y_line,x_line]==1:
-                            is_line=0 # 是否标记此点为wall line
-                            # wall line 方向的探测阶段
-                            for ddx in range(1,l_d+1):
-                                x_k=x_line+k_direc*ddx  # 探测端点
-                                if x_k<0 or x_k>=x: break # 超出img范围，则结束探测
-                                # 如探测端点是直线或预测像素点，则启动充填
-                                if line_map[y_line,x_k]>0 or img_bool[y_line,x_k]==1:
-                                    # 充填阶段
-                                    for dddx in range(1,ddx+1):
-                                        dx_k=x_line+k_direc*dddx
-                                        # 当探测端点是wall line时
-                                        if line_map[y_line,x_k]>0:
-                                            # 探测端点 wall line 信息
-                                            k_detect=K_map[y_line,x_k] # 探测点wall line斜率
-                                            # 如果端点直线K相似，直接充填
-                                            if is_K_same(k_line,k_detect):
-                                                is_line=1 # 此点保存                                     
-                                                K_map[y_line,dx_k]=max_k # 赋值此点斜率值
-                                                # 判断距离map数值
-                                                # 若此点是被相似成对wall line生长过 —— 按最小值赋值
-                                                if is_fill_by_same_line[y_line,dx_k]==1:
-                                                    dis_k_line_map[y_line,dx_k]=min(dddx,dis_k_line_map[y_line,dx_k])
-                                                # 若此点未被相似成对wall line生长过 —— 直接赋值dis
-                                                else:
-                                                    dis_k_line_map[y_line,dx_k]=dddx
-                                                # 标记此点被相似成对线段充填
-                                                is_fill_by_same_line[y_line,dx_k]=1
-                                                is_fill_by_same_line[y_line,x_line]=1
-                                                new_line_map[y_line,dx_k]=new_no # 赋值此点wall line序号
-                                                continue
-                                    
-                                        # 如果是预测墙体区域 
-                                        # 如果是由对边线充填的形式，则不充填
-                                        k_detect=K_map[y_line,x_k] # 探测点wall line斜率
-                                        if img_bool[y_line,x_k]==1 and is_K_same(k_line,k_detect):
-                                            # 如果是未生长区域，直接充填
-                                            if new_line_map[y_line,dx_k]==0 :
-                                                is_line=1
-                                                new_line_map[y_line,dx_k]=new_no                                     
-                                                K_map[y_line,dx_k]=max_k
-                                                dis_k_line_map[y_line,dx_k]=dddx
-                                                len_dis_k_line_map[y_line,dx_k]=len_wall_line
-                                                continue
-                                            
-                                            # 如果是生长区域，没有被相似成对直线情况充填时+距离最近时 = 可以充填
-                                            else:
-                                                if is_fill_by_same_line[y_line,dx_k]==0:
-                                                    if dis_k_line_map[y_line,dx_k]>0 and dis_k_line_map[y_line,dx_k]>dddx :
-                                                        is_line=1                                     
-                                                        K_map[y_line,dx_k]=max_k
-                                                        new_line_map[y_line,dx_k]=new_no
-                                                        dis_k_line_map[y_line,dx_k]=dddx
-                                                        len_dis_k_line_map[y_line,dx_k]=len_wall_line
-                                                        continue
-                            if is_line==1:
-                                new_line_map[y_line,x_line]=new_no
-                                dis_k_line_map[y_line,x_line]=0 
-            # 水平扩展
-            elif y1==y2:
-                k_direc=1 if y_d>y1 else -1
+            y_min=min(y1,y2)
+            y_max=max(y1,y2)
+            # line_map基于wall line轨迹，保存全局wall line的序号NO，与wall_line中保存的wall line坐标的序号一一对应
+            # K_map 基于wall line轨迹，保存全局wall line的斜率K值，如果有交叉，以长度长的为准
+            for y_line in range(y_min,y_max+1):
                 for x_line in range(x_min,x_max+1):
-                    for y_line in range(y_min,y_max+1):
-                        # 若ROI区域有wall line轨迹
-                        if line_flg[y_line,x_line]==1:
-                            is_line=0 # 是否标记此点为wall line
-                            # 探测阶段
-                            for ddy in range(1,l_d+1):
-                                y_k=y_line+k_direc*ddy # 探测端点
-                                if y_k<0 or y_k>=y: break # 若超出范围则停止探测
-                                # 若探测端点是wall line 或是 pridiction mask
-                                if line_map[y_k,x_line]>0 or img_bool[y_k,x_line]==1:
-                                    # 充填阶段
-                                    for dddy in range(1,ddy+1):
-                                        dy_k=y_line+k_direc*dddy
-                                        # 如果端点是wall line
-                                        if line_map[y_k,x_line]>0:
-                                            # 探测端点 wall line 信息
-                                            k_detect=K_map[y_k,x_line] # 探测点wall line斜率
-                                            # 如果端点直线K相似，直接充填
-                                            if is_K_same(k_line,k_detect):
-                                                is_line=1   # 此点保存                      
-                                                K_map[dy_k,x_line]=0  # 赋值此点斜率值
-                                                # 判断距离map数值
-                                                # 若此点是被相似成对wall line生长过 —— 按最小值赋值
-                                                if is_fill_by_same_line[dy_k,x_line]==1:
-                                                    dis_k_line_map[dy_k,x_line]=min(dddy,dis_k_line_map[dy_k,x_line])
-                                                # 若此点未被相似成对wall line生长过 —— 直接赋值dis
-                                                else:
-                                                    dis_k_line_map[dy_k,x_line]=dddy                                  
-                                                # 标记此点被相似成对线段充填
-                                                is_fill_by_same_line[dy_k,x_line]=1
-                                                is_fill_by_same_line[y_line,x_line]=1
-                                                # 赋值此点wall line序号
-                                                new_line_map[dy_k,x_line]=new_no
-                                                continue
-                                        # 如果是预测墙体区域
-                                        # 如果是由对边线充填的形式，则不充填
-                                        k_detect=K_map[y_k,x_line] # 探测点wall line斜率
-                                        if img_bool[y_k,x_line]==1 and is_K_same(k_line,k_detect):
-                                            # 如果是未生长区域，直接充填
-                                            if new_line_map[dy_k,x_line]==0 :
-                                                is_line=1
-                                                new_line_map[dy_k,x_line]=new_no                                     
-                                                K_map[dy_k,x_line]=0
-                                                dis_k_line_map[dy_k,x_line]=dddy
-                                                len_dis_k_line_map[dy_k,x_line]=len_wall_line
-                                                continue
-                                            # 如果是生长区域，没有被相似成对直线情况充填时+dis更小=可以充填
-                                            else:
-                                                if is_fill_by_same_line[dy_k,x_line]==0:
-                                                    if dis_k_line_map[dy_k,x_line]>0 and dis_k_line_map[dy_k,x_line]>dddy :
-                                                    
-                                                        len_dis_k_line_map[dy_k,x_line]=len_wall_line
-                                                        is_line=1
-                                                        new_line_map[dy_k,x_line]=new_no                                     
-                                                        K_map[dy_k,x_line]=0
-                                                        dis_k_line_map[dy_k,x_line]=dddy
-                                                        continue
-                            if is_line==1:
-                                new_line_map[y_line,x_line]=new_no
-                                dis_k_line_map[y_line,x_line]=0 
-            # 斜边扩展
-            else:
-                xk_direc=1 if x_d>x1 else -1
-                yk_direc=1 if y_d>y1 else -1
-                dk=-1/k_line
-                dx=(l_d**2/(1+dk**2))**0.5
-                dy=dk*dx if dk>0 else -dk*dx
-                for x_line in range(x_min,x_max+1):
-                    for y_line in range(y_min,y_max+1):
-                        # 若ROI区域有wall line轨迹
-                        if line_flg[y_line,x_line]==1:
-                            is_line=0 # 是否标记此点为wall line
-                            # 确定过此点的直线方程
-                            db=y_line-dk*x_line
-                            # 确定探测端点
-                            x_k=x_line+xk_direc*dx
-                            y_k=dk*x_k+db
-                            x_k,y_k=int(x_k),int(y_k)
-                            # 绘制探测线段
-                            detection_line=np.zeros((y,x),np.uint8)
-                            cv2.line(detection_line, (x_line, y_line), (int(x_k),int(y_k)),1, 1)
-                            # 探测阶段
-                            # x轴探测
-                            for ddx in range(1,int(dx)+1):
-                                dx_k=x_line+xk_direc*ddx
-                                dy_k=dk*dx_k+db
-                                dx_k=int(dx_k)
-                                dy_k=int(dy_k)
-                                # 超出img范围，则结束探测
-                                if dx_k<0 or dx_k>=x or dy_k<0 or dy_k>=y:break
-                                # 确定y轴探测范围（y_line，dy_k）
-                                detec_y_min=min(y_line,dy_k)
-                                if detec_y_min<0:detec_y_min=0
-                                detec_y_max=max(y_line,dy_k)
-                                if detec_y_max>y-1:detec_y_max=y-1
-                                # y轴探测
-                                for detec_y in range(detec_y_min,detec_y_max+1):
-                                    # 当是探测线时，检查是否符合填充条件
-                                    if detection_line[detec_y,int(dx_k)]==1 :
-                                        # 如探测端点是直线或预测像素点，则启动充填
-                                        if line_map[detec_y,int(dx_k)]>0 or img_bool[detec_y,int(dx_k)]==1:
-                                            # ROI区域
-                                            de_x_min=int(min(x_line,dx_k))
-                                            if de_x_min<0:de_x_min=0
-                                            de_x_max=int(max(x_line,dx_k))
-                                            if de_x_max>=x:de_x_max=x-1
-                                            de_y_min=int(min(y_line,dy_k))
-                                            if de_y_min<0:de_y_min=0
-                                            de_y_max=int(max(y_line,dy_k))
-                                            if de_y_max>=y:de_y_max=y-1
-                                            for de_x in range(de_x_min,de_x_max+1):
-                                                for de_y in range(de_y_min,de_y_max+1):
-                                                    # 探测线存在且不为wall line上的点
-                                                    if detection_line[de_y,de_x]==1 :
-                                                        if de_y!=y_line or de_x!=x_line:
-                                                            # 计算距离值
-                                                            distance_point=((de_y-y_line)**2+(de_x-x_line)**2)**0.5
-                                                            k_now=k_line
-                                                            # 如果探测区域有直线存在
-                                                            if line_map[detec_y,int(dx_k)]>0 :
-                                                                # 获取探测端点 wall line 信息
-                                                                k_detect=K_map[detec_y,int(dx_k)] # 获取斜率K
-                                                                # 且斜率K近似, 可以直接充填
-                                                                if is_K_same(k_line,k_detect):
-                                                                    is_line=1  # 此点保存  
-                                                                    K_map[de_y,de_x]=k_now # 赋值此点斜率值
-                                                                    # 判断距离map数值
-                                                                    # 若此点是被相似成对wall line生长过 —— 按最小值赋值
-                                                                    if is_fill_by_same_line[de_y,de_x]==1:
-                                                                        dis_k_line_map[de_y,de_x]=min(distance_point,dis_k_line_map[de_y,de_x])
-                                                                    # 若此点未被相似成对wall line生长过 —— 直接赋值dis
-                                                                    else:
-                                                                        dis_k_line_map[de_y,de_x]=distance_point
-                                                                    # 标记此点被相似成对线段充填
-                                                                    is_fill_by_same_line[de_y,de_x]=1
-                                                                    is_fill_by_same_line[y_line,x_line]=1
-                                                                    # 赋值此点wall line序号
-                                                                    new_line_map[de_y,de_x]=new_no
-                                                                    continue
-                                                            # 如果探测区域有墙体预测区域存在
-                                                            k_detect=K_map[detec_y,int(dx_k)] # 获取斜率K
-                                                            if img_bool[detec_y,int(dx_k)]==1 and is_K_same(k_line,k_detect):
-                                                                # 如果是未生长区域，直接充填
-                                                                if new_line_map[de_y,de_x]==0:
-                                                                    is_line=1
-                                                                    K_map[de_y,de_x]=k_now
-                                                                    new_line_map[de_y,de_x]=new_no
-                                                                    dis_k_line_map[de_y,de_x]=distance_point
-                                                                    len_dis_k_line_map[de_y,de_x]=len_wall_line
-                                                                    continue
-                                                                # 如果是生长区域，没有被相似成对直线情况充填时 + dis更小=可以充填
-                                                                else:
-                                                                    if is_fill_by_same_line[de_y,de_x]==0:
-                                                                        if dis_k_line_map[de_y,de_x]>0 and dis_k_line_map[de_y,de_x]>distance_point:
-                                                                            is_line=1    
-                                                                            K_map[de_y,de_x]=k_now
-                                                                            new_line_map[de_y,de_x]=new_no
-                                                                            dis_k_line_map[de_y,de_x]=distance_point
-                                                                            len_dis_k_line_map[de_y,de_x]=len_wall_line
-                                                                            continue
-                            if is_line==1:
-                                new_line_map[y_line,x_line]=new_no
-                                dis_k_line_map[y_line,x_line]=0 
+                    if line_flg[y_line,x_line]==1:
+                        # 如果轨迹为空，则直接写入NO和K
+                        if line_map[y_line,x_line]==0:
+                            line_map[y_line,x_line]=no_line
+                            # print('k',k)
+                            K_map[y_line,x_line]=k_wallLine
+                        # 若有交叉，以长度长的为准
+                        else:
+                            # keep longer line k
+                            l_now=(x1-x2)**2+(y1-y2)**2
+                            no_befor=line_map[y_line,x_line]-1
+                            l_befor=(wall_lines[no_befor][0]-wall_lines[no_befor][2])**2+(wall_lines[no_befor][1]-wall_lines[no_befor][3])**2
+                            if l_now>l_befor:
+                                line_map[y_line,x_line]=no_line
+                                K_map[y_line,x_line]=k_wallLine
+            # add wall lines
+            wall_line=[x1,y1,x2,y2]
+            wall_lines.append(wall_line)
+            # get direction
+            direc_line=[x1,y1,x5,y5] if mask1_p>mask2_p else [x1,y1,x3,y3]
+            direc_lines.append(direc_line)
+
+    return wall_lines,direc_lines,k_lines
         
-        print('---------------finish feature map--------------------')
+def wall_vector(img,img_o,img_pre):
+    start_time=time.perf_counter()
+    # get resize scale
+    img_shape=img_o.shape[:2]
+    resize_scale=max(img_shape)//500
 
-        ######### 区域生长阶段 ############
-        def isPointIn(point_x,point_y,x_b_min=0,x_b_max=x,y_b_min=0,y_b_max=y):
-            #判断点是否在某一区域内
-            if point_x>=x_b_min and point_x<x_b_max and point_y>=y_b_min and point_y<y_b_max:
-                return True
+    # process img
+    img_gray=cv2.cvtColor(img_o,cv2.COLOR_BGR2GRAY)
+
+    # Fast LSD
+    lsd_dec=cv2.ximgproc.createFastLineDetector()
+    lines_fastLSD=lsd_dec.detect(img_gray)
+
+    # logger.warning('num of lines in source data: {}'.format(len(lines_fastLSD)))
+    
+    # filter lines
+    # img_wall=img_pre.copy()
+
+    # get BINARY prediction img
+    img_bool=img_pre.copy()
+    img_bool=cv2.cvtColor(img_bool, cv2.COLOR_BGR2GRAY)#灰化
+    _,img_bool=cv2.threshold(img_bool,127,1,cv2.THRESH_BINARY)#二值化
+
+    # get img size
+    y,x=img_bool.shape
+
+    # save wall lines , direction and k
+    wall_lines=[]
+    direc_lines=[]
+    k_lines=[]
+
+    # process condition
+    a1=2 # fusion dis
+    a2=8 # detection dis
+
+    # init detection position
+    dx=0
+    dy=0
+
+    # wall area condition
+    thr_mp=0.01 # exist condition
+    thr_dis=0.3 # diff condition
+
+    # K feature map
+    K_map=np.zeros((y,x),np.float16) # save k
+    line_map=np.zeros((y,x),np.uint16) # save no(1,2,3...) of wall line, 0-not wall
+
+    # NO. of wall line
+    no_line=0
+
+    # # 水平斜率阈值
+    # k_max_horizontal=0.177
+    # k_min_horizontal=-0.177
+
+    # # 竖直斜率阈值
+    # k_max_vertical=5.76
+    # k_min_vertical=-5.76
+
+    # filter wall lines
+    for line in lines_fastLSD:
+        x1,y1,x2,y2=line[0]
+        
+        x1=x1//resize_scale
+        y1=y1//resize_scale
+        x2=x2//resize_scale
+        y2=y2//resize_scale
+
+        if (x1-x2)**2<=a1**2 and (y1-y2)**2<=a1**2:
+            continue
+        x0,x3,x4,x5,=x1,x1,x1,x1
+        y0,y3,y4,y5,=y1,y1,y1,y1
+        dx=0
+        dy=a2
+        if y1==y2:
+            dx=0
+            dy=a2
+        else:
+            k=(x1-x2)/(y2-y1)
+            dx=((a2**2)/(1+k**2))**0.5
+            dy=dx*k
+        x5=x1-dx 
+        y5=y1-dy
+        x4=x2-dx
+        y4=y2-dy
+
+        x3=x1+dx
+        y3=y1+dy
+        x0=x2+dx
+        y0=y2+dy
+
+        x0,x1,x2,x3,x4,x5,y0,y1,y2,y3,y4,y5=int(x0),int(x1),int(x2),int(x3),int(x4),int(x5),int(y0),int(y1),int(y2),int(y3),int(y4),int(y5)
+
+        # filter line
+        rec1=[[x1,y1],[x2,y2],[x4,y4],[x5,y5]]
+        rec2=[[x1,y1],[x2,y2],[x0,y0],[x3,y3]]
+        cnts=[]
+        cnts.append(rec1)
+        cnts.append(rec2)
+        rec1=np.array(rec1)[:,np.newaxis,:]
+        rec2=np.array(rec2)[:,np.newaxis,:]
+
+        # create mask
+        mask1=np.zeros((y,x),np.uint8)
+        cv2.drawContours(mask1,rec1[np.newaxis,:,:,:],0, (255), -1)
+        mask2=np.zeros((y,x),np.uint8)
+        cv2.drawContours(mask2,rec2[np.newaxis,:,:,:],0, (255), -1)
+        #二值化
+        _,mask1_b=cv2.threshold(mask1,127,1,cv2.THRESH_BINARY)
+        _,mask2_b=cv2.threshold(mask2,127,1,cv2.THRESH_BINARY)
+        # 计算探测区域 wall_area/detect_area 百分比
+        mask1_area=np.sum(mask1_b*img_bool)
+        mask2_area=np.sum(mask2_b*img_bool)
+        mask_area=max(mask1_area,mask2_area)
+        mask1_p=mask1_area/np.sum(mask1_b)
+        mask2_p=mask2_area/np.sum(mask2_b)
+        mask_p=max(mask1_p,mask2_p)
+        if (mask1_p+mask2_p)>(thr_mp*2) and ((mask1_p-mask2_p)/mask_p)**2>(thr_dis**2) and mask_area>=20: 
+            no_line+=1 # num of wall line
+            # get k - wall line
+            k_wallLine=None
+            if x1==x2:
+                k_wallLine=max_k
+            elif y1==y2:
+                k_wallLine=0
             else:
-                return False
+                k_wallLine=(line[0][1]-line[0][3])/(line[0][0]-line[0][2])  # (y1-y2)/(x1-x2)
+            k_lines.append(k_wallLine) # 压入斜率K
 
-        # 区域生长
-        def k_RG(point_x,point_y,k_stand,k_rg_map,k_rg_flag_map,k_size=3,thr=0.5):
-            # 8邻域
-            # 0.5
-            # 判断是否已经遍历过
-            if k_rg_flag_map[point_y,point_x]!=255:
-                k_rg_flag_map[point_y,point_x]=255 # 标记已经遍历
-                x_nears=[]
-                y_nears=[]
-                for i in range(k_size):
-                    for j in range(k_size):
-                        x_near=point_x+i-1
-                        y_near=point_y+j-1
-                        if isPointIn(x_near,y_near):
-                            x_nears.append(x_near)
-                            y_nears.append(y_near)
-                num_near=len(x_nears)
-                # 是否属于k_stand区域
-                num_k=0
-                num_same_k=0
-                for i in range(num_near):
-                    x_near,y_near=x_nears[i],y_nears[i]
-                    if new_line_map[y_near,x_near]>0 :
-                        num_k+=1
-                        if is_K_same(k_stand,K_map[y_near,x_near]): num_same_k+=1
-                seeds_x=[]
-                seeds_y=[]
-                if num_same_k>=int(num_k*thr) and num_k>=int(num_near*thr):
-                    k_rg_map[point_y,point_x]=255
-                    seeds_x.append(point_x)
-                    seeds_y.append(point_y)
-                # 四周生长
-                while len(seeds_x)>0:
-                    seed_x=seeds_x.pop(0)
-                    seed_y=seeds_y.pop(0)
-                    for ii in range(k_size):
-                        for jj in range(k_size):
-                            seed_x_near=seed_x-1+ii
-                            seed_y_near=seed_y-1+jj
-                            if isPointIn(seed_x_near,seed_y_near) and k_rg_flag_map[seed_y_near,seed_x_near]==0:
-                                k_rg_flag_map[seed_y_near,seed_x_near]=255
-                                is_same_k_flag=False
-                                num_near_seed=0
-                                num_k_seed=0
-                                num_same_k_seed=0
-                                for iii in range(k_size):
-                                    for jjj in range(k_size):
-                                        seed_x_near_near=seed_x_near-1+iii
-                                        seed_y_near_near=seed_y_near-1+jjj
-                                        if isPointIn(seed_x_near_near,seed_y_near_near):
-                                            num_near_seed+=1
-                                            if new_line_map[seed_y_near_near,seed_x_near_near]>0:
-                                                num_k_seed+=1
-                                                if is_K_same(k_stand,K_map[seed_y_near_near,seed_x_near_near]):
-                                                    num_same_k_seed+=1
-                                if num_same_k_seed>=int(num_k_seed*thr) and num_k_seed>=int(num_near_seed*thr):is_same_k_flag=True
-                                if is_same_k_flag:
-                                    k_rg_map[seed_y_near,seed_x_near]=255
-                                    seeds_x.append(seed_x_near)
-                                    seeds_y.append(seed_y_near)
-        wall_vectors=[]
-        new_wall_mask=np.zeros((y,x),np.uint8)
-        k_rgs=[0,max_k,1,-1]
-        rg_flag_map=np.zeros((y,x),np.uint8)
-        for k_rg in k_rgs:
-            rg_map=np.zeros((y,x),np.uint8)
-            for x_rg in range(x):
-                for y_rg in range(y):
-                    if new_line_map[y_rg,x_rg]>0 and is_K_same(K_map[y_rg,x_rg],k_rg) :
-                        k_RG(x_rg,y_rg,k_stand=k_rg,k_rg_map=rg_map,k_rg_flag_map=rg_flag_map)
+            # # bool wall direction
+            # t1=1 if mask2_p>mask1_p else -1
+            # t2=1 if mask1_p>mask2_p else -1
+
+            # draw line flag on line map
+            # 此段wall line的轨迹
+            line_flg=np.zeros((y,x),np.uint8)
+            cv2.line(line_flg, (x2, y2), (x1,y1),1, 1)
+            # ROI
+            x_min=min(x1,x2)
+            x_max=max(x1,x2)
+            y_min=min(y1,y2)
+            y_max=max(y1,y2)
+            # line_map基于wall line轨迹，保存全局wall line的序号NO，与wall_line中保存的wall line坐标的序号一一对应
+            # K_map 基于wall line轨迹，保存全局wall line的斜率K值，如果有交叉，以长度长的为准
+            for y_line in range(y_min,y_max+1):
+                for x_line in range(x_min,x_max+1):
+                    if line_flg[y_line,x_line]==1:
+                        # 如果轨迹为空，则直接写入NO和K
+                        if line_map[y_line,x_line]==0:
+                            line_map[y_line,x_line]=no_line
+                            # print('k',k)
+                            K_map[y_line,x_line]=k_wallLine
+                        # 若有交叉，以长度长的为准
+                        else:
+                            # keep longer line k
+                            l_now=(x1-x2)**2+(y1-y2)**2
+                            no_befor=line_map[y_line,x_line]-1
+                            l_befor=(wall_lines[no_befor][0]-wall_lines[no_befor][2])**2+(wall_lines[no_befor][1]-wall_lines[no_befor][3])**2
+                            if l_now>l_befor:
+                                line_map[y_line,x_line]=no_line
+                                K_map[y_line,x_line]=k_wallLine
+            # add wall lines
+            wall_line=[x1,y1,x2,y2]
+            wall_lines.append(wall_line)
+            # get direction
+            direc_line=[x1,y1,x5,y5] if mask1_p>mask2_p else [x1,y1,x3,y3]
+            direc_lines.append(direc_line)
+    
+    wall_lines_filter_time=time.perf_counter()
+    wall_lines_filter_time_cost=wall_lines_filter_time-start_time
+    print('wall_lines_filter_time_cost',wall_lines_filter_time_cost)
+    print('---------------finish filter wall lines--------------------')
+    
+
+    #### prediction pix 分类阶段 ####
+    # save new no(1,2,3...) of wall line, 0-not wall
+    new_line_map=np.zeros((y,x),np.uint16) 
+    # save distance from pix point to wall lines
+    dis_k_line_map=np.zeros((y,x),np.float16)
+    # 保存对应wall line的长度
+    len_dis_k_line_map=np.zeros((y,x),np.float16)
+    
+    ############### maybe this part should put the position after create K feature map based on wall lines ##################
+    ############### and this part can classify the rest of wall pix #########################################################
+    # ************most time-consuming********************
+    # 点距探测 - 固定 / 非固定 探测范围 算法均由内向外扩张
+    def point_detect(x_point,y_point,r_max):
+        r_detect=1 # 起始探测半径
+        is_detected=False # 是否已经探测到
+
+        while is_detected==False and r_detect<=r_max:
+            has_detect_position=[] # 保存遍历过的位置
+            for y_detect_r in range(-r_detect,r_detect+1):
+                y_detect=y_point+y_detect_r
+                if y_detect<0:continue
+                if y_detect>=y:break
+                # 仅对外缘进行探测
+                if y_detect_r==r_detect or y_detect_r==-r_detect:
+                    for x_detect_r in range(-r_detect,r_detect+1):
+                            x_detect=x_point+x_detect_r
+                            if x_detect<0:continue
+                            if x_detect>=x:break
+                            # 判断此点是否已经遍历过
+                            if [y_detect,x_detect] in has_detect_position:continue
+                            else:
+                                has_detect_position.append([y_detect,x_detect])
+                                # 若探测到wall line 
+                                if line_map[y_detect,x_detect]>0 and is_detected is False:
+                                    dis_k_line_map[y_point,x_point]=r_detect # 赋值距离map(while逐步外探)
+                                    no_dis_wall_line=line_map[y_detect,x_detect]-1
+                                    this_wall_line=wall_lines[no_dis_wall_line]
+                                    this_len=((this_wall_line[0]-this_wall_line[2])**2+(this_wall_line[1]-this_wall_line[3])**2)**0.5
+                                    len_dis_k_line_map[y_point,x_point]=this_len # 赋值新的预测像素所属wall line的长度
+                                    new_line_map[y_point,x_point]=line_map[y_detect,x_detect] # 赋值新的预测像素所属wall line的序号
+                                    K_map[y_point,x_point]=k_lines[line_map[y_detect,x_detect]-1] # 赋值斜率特征图
+                                    is_detected=True
+                                    return
+                else:
+                    for x_detect_r in [-r_detect,r_detect]:
+                        x_detect=x_point+x_detect_r
+                        if x_detect>=0 and x_detect<x:
+                            # 判断此点是否已经遍历过
+                            if [y_detect,x_detect] in has_detect_position:continue
+                            else:
+                                has_detect_position.append([y_detect,x_detect])
+                                # 若探测到wall line 
+                                if line_map[y_detect,x_detect]>0 and is_detected is False:
+                                    dis_k_line_map[y_point,x_point]=r_detect # 赋值距离map(while逐步外探)
+                                    no_dis_wall_line=line_map[y_detect,x_detect]-1
+                                    this_wall_line=wall_lines[no_dis_wall_line]
+                                    this_len=((this_wall_line[0]-this_wall_line[2])**2+(this_wall_line[1]-this_wall_line[3])**2)**0.5
+                                    len_dis_k_line_map[y_point,x_point]=this_len # 赋值新的预测像素所属wall line的长度
+                                    new_line_map[y_point,x_point]=line_map[y_detect,x_detect] # 赋值新的预测像素所属wall line的序号
+                                    K_map[y_point,x_point]=k_lines[line_map[y_detect,x_detect]-1] # 赋值斜率特征图
+                                    is_detected=True
+                                    return
+
+            # 若未探测到则增大探测半径继续探测
+            if is_detected is False:
+                r_detect+=1
+
+    # classify each prediction pix
+    r_max=20 # 最大探测半径
+    for yi in range(y):
+        for xi in range(x):
+            # 若此点为prediction pix, 且不为wall line 轨迹
+            if img_bool[yi,xi]==1 and line_map[yi,xi]==0:
+                point_detect(xi,yi,r_max)
+
+    pix_classify_time=time.perf_counter()
+    pix_classify_time_cost=pix_classify_time-wall_lines_filter_time
+    print('pix_classify_time_cost',pix_classify_time_cost)
+    print('---------------finish classify each prediction pix--------------------')
+    # ************most time-consuming********************
+    ############### maybe this part should put the position after create K feature map based on wall lines ##################
+
+    #### k feature map充填阶段 ####
+    # wall line 方向的探测区域长度 
+    l_d=8
+    # save the flag that pix is or not filled by same lines
+    is_fill_by_same_line=np.zeros((y,x),np.uint8) 
+    # create k map
+    for i in range(len(wall_lines)):
+        new_no=i+1 # 此时的wall line编号
+        x1,y1,x2,y2=wall_lines[i] # 提取wall line坐标
+        k_line=k_lines[i] # 此条wall line的斜率K
+        x1,y1,x_d,y_d=direc_lines[i] # 方向线坐标，以point1为起点
+        vector_wall_i=[x_d-x1,y_d-y1] # wall line 的方向向量
+        len_wall_line=((x1-x2)**2+(y1-y2)**2)**0.5 # wall lines 长度
+
+        # draw wall lines
+        # 绘制原始wall line
+        # cv2.line(img_wall, (x2, y2), (x1,y1),(0,0,255), 1)
+
+        # draw line flag on line map
+        # 绘制这条wall line 的轨迹（不水平和不竖直的wall line需要以此为生长种子）
+        line_flg=np.zeros((y,x),np.uint8)
+        cv2.line(line_flg, (x2, y2), (x1,y1),1, 1)
+
+        # 分为：水平、垂直和其他情况分类处理
+        # ROI区域
+        y_min=min(y1,y2)
+        y_max=max(y1,y2)
+        x_min=min(x1,x2)
+        x_max=max(x1,x2)
+
+        # 垂直wall line -- x水平扩展
+        if x1==x2: 
+            # 获取X的方向
+            k_direc=1 if x_d>x1 else -1
+            for y_line in range(y_min,y_max+1):
+                for x_line in range(x_min,x_max+1):
+                    # 若存在wall line轨迹，则进行探测
+                    if line_flg[y_line,x_line]==1:
+                        is_re_wall_line=False # 探测结果是否为同向相似墙体线段
+                        is_coupled_wall_line=False # 探测结果是否为成对（斜率相似+墙体方向相反）墙体线段
+                        position_coupled_wall_line=None # 记录成对wall line的点位
+
+                        # 分为：探测阶段+充填阶段
+
+                        # wall line 方向的探测阶段
+                        # is_exist_wall_pix=False # 在成对的像素中间应该存在wall才能认定成对wall有效
+
+                        # 探测阶段：是否有相似斜率的wall line - 同向/成对做好标记返回
+                        for ddx in range(1,l_d+1):
+                            x_k=x_line+k_direc*ddx  # 正向探测端点
+
+                            if x_k<0 or x_k>=x: break # 超出img范围，则结束探测
+
+                            # # 若探测过程中出现wall像素，则标记is_exist_wall_pix
+                            # if img_bool[y_line,x_k]==1 and is_exist_wall_pix==False: is_exist_wall_pix=True
+                            
+                            # 当探测端点是wall line时，则启动判断
+                            if line_map[y_line,x_k]>0:
+                                k_detect=K_map[y_line,x_k] # 探测点wall line斜率
+
+                                # 如果端点直线K相似，需判断是否同向
+                                if is_K_same(k_line,k_detect):
+                                    # 探测端点 wall line 信息
+                                    no_detect=line_map[y_line,x_k]-1 # 探测点wall line编号
+                                    direct_detect=direc_lines[no_detect] # 探测点wall line方向
+                                    direct_x1,direct_y1,direct_x_d,direct_y_d=direct_detect # 探测点wall line方向线坐标，以点1为起点
+                                    vector_wall_i_detect=[direct_x_d-direct_x1,direct_y_d-direct_y1] # wall line 的方向向量
+                                    # 探测点方向是否与原wall line方向一致
+                                    is_same_direct=True if (vector_wall_i_detect[0]*vector_wall_i[0]+vector_wall_i_detect[1]*vector_wall_i[1])>=0 else False
+                                    # 同向时
+                                    if is_same_direct:
+                                        is_re_wall_line=True
+                                        break
+                                    # 异向成对时
+                                    else:
+                                        is_coupled_wall_line=True
+                                        position_coupled_wall_line=[y_line,x_k] # 保存成对wall line点位
+                                        break
+                        
+                        # 如是同向相似时，不进入充填阶段，直接跳出
+                        if is_re_wall_line: break
+
+                        # 充填阶段: 优先充填成对wall line / 其次尝试像素点充填
+                        if is_coupled_wall_line: # and is_exist_wall_pix:
+                            y_fill,x_fill=position_coupled_wall_line
+                            x_start=min(x_fill,x_line)
+                            x_end=max(x_fill,x_line)+1
+                            # 开始充填
+                            for xi_fill in range(x_start,x_end):
+                                # 若此点未被相似成对wall line生长过 + 是wall line pix
+                                if is_fill_by_same_line[y_line,xi_fill]!=1 and img_bool[y_line,xi_fill]==1 :
+                                    is_fill_by_same_line[y_line,xi_fill] = 1 # 标记此点被成对wall line充填
+                                    K_map[y_line,xi_fill]=max_k # 赋值此点斜率值
+                                    new_line_map[y_line,xi_fill]=new_no # 赋值此点wall line序号
+                            break # 成对充填结束直接弹出
+
+                        # 像素充填
+                        elif is_re_wall_line is False and is_coupled_wall_line is False:
+                            num_contect_black_pix=0 # 是否继续充填的标志-连续空洞像素的数量
+                            dis_pix_detect=0 # 像素探测距离-从自身开始
+
+                            while num_contect_black_pix<3 and dis_pix_detect<=l_d:
+                                # 探测点坐标
+                                x_detect=x_line+k_direc*dis_pix_detect  
+                                y_detect=y_line
+
+                                # 符合充填条件-存在wall像素+没有被成对充填
+                                if img_bool[y_detect,x_detect]==1 and is_fill_by_same_line[y_detect,x_detect] == 0:
+                                    num_contect_black_pix=0 # 重置连续空洞像素数量
+
+                                    # 如未被生长过 或 已经被生长但距离更短，则直接充填
+                                    if new_line_map[y_detect,x_detect]==0 or (new_line_map[y_detect,x_detect]!=0 and dis_k_line_map[y_detect,x_detect]>dis_pix_detect):
+                                        K_map[y_detect,x_detect]=max_k
+                                        new_line_map[y_detect,x_detect]=new_no
+                                        dis_k_line_map[y_detect,x_detect]=dis_pix_detect
+                                
+                                # 不符合充填条件
+                                else:
+                                    num_contect_black_pix+=1 # 增加连续空洞
+                                
+                                # 增加探测距离
+                                dis_pix_detect+=1
+        
+        # 水平wall line -- y竖直扩展
+        elif y1==y2:
+            # 获取Y的方向
+            k_direc=1 if y_d>y1 else -1
+            for x_line in range(x_min,x_max+1):
+                for y_line in range(y_min,y_max+1):
+                    # 若ROI区域有wall line轨迹，则进行探测
+                    if line_flg[y_line,x_line]==1:
+                        is_re_wall_line=False # 探测结果是否为同向相似墙体线段
+                        is_coupled_wall_line=False # 探测结果是否为成对（斜率相似+墙体方向相反）墙体线段
+                        position_coupled_wall_line=None # 记录成对wall line的点位
+
+                        # 分为：探测阶段+充填阶段
+
+                        # wall line 方向的探测阶段
+                        # is_exist_wall_pix=False # 在成对的像素中间应该存在wall才能认定成对wall有效
+
+                        # 探测阶段：是否有相似斜率的wall line - 同向/成对做好标记返回
+                        for ddy in range(1,l_d+1):
+                            y_k=y_line+k_direc*ddy # 探测端点
+
+                            if y_k<0 or y_k>=y: break # 若超出范围则停止探测
+
+                            # # 若探测过程中出现wall像素，则标记is_exist_wall_pix
+                            # if img_bool[y_k,x_line]==1 and is_exist_wall_pix==False: is_exist_wall_pix=True
+                            
+                            # 若探测端点是wall line，则启动判断
+                            if line_map[y_k,x_line]>0:
+                                k_detect=K_map[y_k,x_line] # 探测点wall line斜率
+                                
+                                # 如果端点直线K相似，直接充填
+                                if is_K_same(k_line,k_detect):
+                                    # 探测端点 wall line 信息
+                                    no_detect=line_map[y_k,x_line]-1 # 探测点wall line编号
+                                    direct_detect=direc_lines[no_detect] # 探测点wall line方向
+                                    direct_x1,direct_y1,direct_x_d,direct_y_d=direct_detect # 探测点wall line方向线坐标，以点1为起点
+                                    vector_wall_i_detect=[direct_x_d-direct_x1,direct_y_d-direct_y1] # wall line 的方向向量
+                                    # 探测点方向是否与原wall line方向一致
+                                    is_same_direct=True if (vector_wall_i_detect[0]*vector_wall_i[0]+vector_wall_i_detect[1]*vector_wall_i[1])>=0 else False
+                                    # 同向时
+                                    if is_same_direct:
+                                        is_re_wall_line=True
+                                        break
+                                    # 异向成对时
+                                    else:
+                                        is_coupled_wall_line=True
+                                        position_coupled_wall_line=[y_k,x_line] # 保存成对wall line点位
+                                        break
+
+                        # 如是同向相似时，不进入充填阶段，直接跳出
+                        if is_re_wall_line: break
+
+                        # 充填阶段: 优先充填成对wall line / 其次尝试像素点充填
+                        if is_coupled_wall_line: # and is_exist_wall_pix:
+                            y_fill,x_fill=position_coupled_wall_line
+                            y_start=min(y_fill,y_line)
+                            y_end=max(y_fill,y_line)+1
+                            # 开始充填
+                            for yi_fill in range(y_start,y_end):
+                                # 若此点未被相似成对wall line生长过  + 是wall line pix
+                                if is_fill_by_same_line[yi_fill,x_line] != 1 and img_bool[yi_fill,x_line]==1 :
+                                    is_fill_by_same_line[yi_fill,x_line] = 1 # 标记此点被成对wall line充填
+                                    K_map[yi_fill,x_line]=0  # 赋值此点斜率值
+                                    new_line_map[yi_fill,x_line]=new_no # 赋值此点wall line序号
+                            break # 成对充填结束直接弹出
+
+                        # 像素充填阶段
+                        elif is_re_wall_line is False and is_coupled_wall_line is False:
+                            num_contect_black_pix=0 # 是否继续充填的标志-连续空洞像素的数量
+                            dis_pix_detect=0 # 像素探测距离-从自身开始
+
+                            while num_contect_black_pix<3 and dis_pix_detect<=l_d:
+                                # 探测点坐标
+                                x_detect=x_line
+                                y_detect=y_line+k_direc*dis_pix_detect
+
+                                # 符合充填条件-存在wall像素+没有被成对充填
+                                if img_bool[y_detect,x_detect]==1 and is_fill_by_same_line[y_detect,x_detect] == 0:
+                                    num_contect_black_pix=0 # 重置连续空洞像素数量
+
+                                    # 如未被生长过 或 已经被生长但距离更短，则直接充填
+                                    if new_line_map[y_detect,x_detect]==0 or (new_line_map[y_detect,x_detect]!=0 and dis_k_line_map[y_detect,x_detect]>dis_pix_detect):
+                                        K_map[y_detect,x_detect]=0
+                                        new_line_map[y_detect,x_detect]=new_no
+                                        dis_k_line_map[y_detect,x_detect]=dis_pix_detect
+                                
+                                # 不符合充填条件
+                                else:
+                                    num_contect_black_pix+=1 # 增加连续空洞
+                                
+                                # 增加探测距离
+                                dis_pix_detect+=1
+
+        # 斜边扩展
+        else:
+            # 获取X,Y的方向
+            xk_direc=1 if x_d>x1 else -1
+            yk_direc=1 if y_d>y1 else -1
+            dk=-1/k_line # 探测线的斜率
+            dx=(l_d**2/(1+dk**2))**0.5 # 探测线长度的X变量 - 始终大于等于0
+            dy=dk*dx if dk>0 else -dk*dx # 探测线长度的Y变量 - 始终大于等于0
             
-            print('---------------finish k_{} grow up--------------------'.format(k_rg))
-            
-            # 拟合轮廓成矩形
-            contours, _ = cv2.findContours(rg_map, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+            for x_line in range(x_min,x_max+1):
+                for y_line in range(y_min,y_max+1):
+                    # 若ROI区域有wall line轨迹
+                    if line_flg[y_line,x_line]==1:
+                        is_re_wall_line=False # 探测结果是否为同向相似墙体线段
+                        is_coupled_wall_line=False # 探测结果是否为成对（斜率相似+墙体方向相反）墙体线段
+                        position_coupled_wall_line=[] # 记录成对wall line的点位
+                        
+                        # wall line 方向的探测阶段
+                        # is_exist_wall_pix=False # 在成对的像素中间应该存在wall才能认定成对wall有效
 
-            print('---------------finish k_{} find Contours--------------------'.format(k_rg))
-            
-            # ***基于:轮廓面积>area_thr---过滤杂点
-            for cnt in contours:
-                area=cv2.contourArea(cnt)
-                if area<10:continue
-                # print('k_rg',k_rg)
-                # print('cnt',cnt)
-                cnts=findMaxMIOU(cnt,k_rg)
-                # print('len(cnts)',len(cnts))
-                for cnt_i in cnts:
-                    # print('cnt_i',cnt_i)
-                    # print('len(cnt_i)',len(cnt_i))
-                    # print('cnt_i type',type(cnt_i))
-                    rect= cv2.minAreaRect(cnt_i)
-                    points=cv2.boxPoints(rect)
-                    points=np.int0(points)
-                    cv2.drawContours(new_wall_mask,[points],0,255,-1)
-                    l1=max(int(((points[0][0]-points[1][0])**2)**0.5),int(((points[0][1]-points[1][1])**2)**0.5))
-                    l2=max(int(((points[2][0]-points[1][0])**2)**0.5),int(((points[2][1]-points[1][1])**2)**0.5))
-                    width_wall=min(l1,l2)
-                    x_e_vector=(points[0][0]+points[1][0])/2 if width_wall==l1 else (points[2][0]+points[1][0])/2
-                    y_e_vector=(points[0][1]+points[1][1])/2 if width_wall==l1 else (points[2][1]+points[1][1])/2
-                    x_s_vector=(points[2][0]+points[3][0])/2 if width_wall==l1 else (points[0][0]+points[3][0])/2
-                    y_s_vector=(points[2][1]+points[3][1])/2 if width_wall==l1 else (points[0][1]+points[3][1])/2
-                    wall_vector={}
-                    wall_vector['sPoint']=[x_e_vector,y_e_vector]
-                    wall_vector['ePoint']=[x_s_vector,y_s_vector]
-                    wall_vector['width']=width_wall
-                    wall_vector['height']='default'
-                    wall_vector['isStructural']=True
-                    wall_vectors.append(json.dumps(wall_vector))
+                        # 分为：探测阶段+充填阶段
 
-            print('---------------finish k_{} rect fit--------------------'.format(k_rg))
+                        # 探测阶段
+                        # 确定过此点的探测直线方程
+                        db=y_line-dk*x_line
+                        # 确定探测端点
+                        x_k=x_line+xk_direc*dx
+                        y_k=dk*x_k+db
+                        x_k,y_k=int(x_k),int(y_k)
 
-        return new_wall_mask
+                        # 绘制探测线段
+                        detection_line=np.zeros((y,x),np.uint8)
+                        cv2.line(detection_line, (x_line, y_line), (int(x_k),int(y_k)),1, 1)
+
+                        # 根据探测标记进行探测:是否有相似斜率的wall line - 同向/成对做好标记返回
+                        # 以（x_line, y_line）为起始点向（x_k,y_k）探测
+                        # 创建遍历路径
+                        has_passed=np.zeros((y,x),np.uint8)
+
+                        # 初始化起始点
+                        start_x=x_line
+                        start_y=y_line
+
+                        # 开始探测 - 是否有成对wall line
+                        while has_passed[y_k,x_k]==0 and (is_re_wall_line is False) and (is_coupled_wall_line is False):
+                            has_passed[start_y,start_x]=1 # 标记此点为已遍历
+                            position_coupled_wall_line.append([start_y,start_x]) # 保存路径轨迹，成对wall line点位
+                            # 以此点为中心，探测下一个像素点
+                            is_find_next=False # 是否找到下一个像素点
+                            # 八邻域探测
+                            for d_x_i in range(-1,2):
+                                if is_find_next:break
+                                ner_x=start_x+d_x_i
+                                if ner_x not in range(x):continue
+                                for d_y_i in range(-1,2):
+                                    if d_x_i==0 and d_y_i==0:continue # 不遍历自身
+                                    ner_y=start_y+d_y_i
+                                    if ner_y not in range(y):continue
+                                    # 找到下一个点
+                                    if detection_line[ner_y,ner_x]==1 and has_passed[ner_y,ner_x]==0:
+                                        start_x=ner_x
+                                        start_y=ner_y
+                                        is_find_next=True
+
+                                        # # 若探测过程中出现wall像素，则标记is_exist_wall_pix
+                                        # if img_bool[start_y,start_x]==1 and is_exist_wall_pix==False: is_exist_wall_pix=True
+                            
+                                        # 检测是否为wall line
+                                        if line_map[start_y,start_x]>0:
+                                            k_detect=K_map[start_y,start_x] # 探测点wall line斜率
+                                            # 如果端点直线K相似，需判断是否同向
+                                            if is_K_same(k_line,k_detect):
+                                                # 探测端点 wall line 信息
+                                                no_detect=line_map[start_y,start_x]-1 # 探测点wall line编号
+                                                direct_detect=direc_lines[no_detect] # 探测点wall line方向
+                                                direct_x1,direct_y1,direct_x_d,direct_y_d=direct_detect # 探测点wall line方向线坐标，以点1为起点
+                                                vector_wall_i_detect=[direct_x_d-direct_x1,direct_y_d-direct_y1] # wall line 的方向向量
+                                                # 探测点方向是否与原wall line方向一致
+                                                is_same_direct=True if (vector_wall_i_detect[0]*vector_wall_i[0]+vector_wall_i_detect[1]*vector_wall_i[1])>=0 else False
+                                                # 同向时
+                                                if is_same_direct:
+                                                    is_re_wall_line=True
+                                                    break
+                                                # 异向成对时
+                                                else:
+                                                    is_coupled_wall_line=True
+                                                    break
+
+                                        break # 由于已经找到了下一个探测像素点，因此跳出此八邻域寻找循环
+
+                        # 判断充填规则
+                        # 若是同向wall line , 不进入充填阶段， 直接跳出
+                        if is_re_wall_line: break
+
+                        # 充填阶段 - 优先充填成对wall line / 其次尝试像素点充填
+                        if is_coupled_wall_line: # and is_exist_wall_pix:
+                            for fill_point in position_coupled_wall_line:
+                                y_fill,x_fill=fill_point
+                                if is_fill_by_same_line[y_fill,x_fill]==0 and img_bool[y_fill,x_fill]==1 :
+                                    is_fill_by_same_line[y_fill,x_fill]=1
+                                    K_map[y_fill,x_fill]=k_line
+                                    new_line_map[y_fill,x_fill]=new_no
+                            continue # 完成成对wall line 充填后，继续探测下一个像素点
+
+                        # 尝试像素点充填 - 如无相似wall line，则启动像素点充填试探
+                        elif  is_re_wall_line is False and is_coupled_wall_line is False:
+                            num_contect_black_pix=0 # 是否继续充填的标志-连续空洞像素的数量
+                            dis_pix_detect=0 # 记录像素探测距离-从自身开始
+                            
+                            # 由于遍历位置保存在position_coupled_wall_line，且从自身开始
+                            for fill_point in position_coupled_wall_line:
+                                if num_contect_black_pix>3:break
+                                y_fill,x_fill=fill_point
+                                # 符合充填条件-存在wall像素+没有被成对充填
+                                if img_bool[y_fill,x_fill]==1 and is_fill_by_same_line[y_fill,x_fill] == 0:
+                                    num_contect_black_pix=0 # 重置连续空洞像素数量
+                                    # 如未被生长过 或 已经被生长但距离更短，则直接充填
+                                    if new_line_map[y_fill,x_fill]==0 or (new_line_map[y_fill,x_fill]!=0 and dis_k_line_map[y_fill,x_fill]>dis_pix_detect):
+                                        K_map[y_fill,x_fill]=k_line
+                                        new_line_map[y_fill,x_fill]=new_no
+                                        dis_k_line_map[y_fill,x_fill]=dis_pix_detect
+                                else:
+                                    num_contect_black_pix+=1 
+                                # 增加探测距离
+                                dis_pix_detect+=1
+    
+    feature_map_time=time.perf_counter()
+    feature_map_time_cost=feature_map_time-pix_classify_time
+    print('feature_map_time_cost',feature_map_time_cost)
+    print('---------------finish feature map--------------------')
+
+   ###############this part classify the rest of wall pix #########################################################
+    # ************most time-consuming********************
+    # classify rest each prediction pix
+    r_max=999 # 最大探测半径
+    for yi in range(y):
+        for xi in range(x):
+            # 若此点为prediction pix, 且没有被分类
+            if img_bool[yi,xi]==1 and new_line_map[yi,xi]==0:
+                point_detect(xi,yi,r_max)
+
+    rest_pix_classify_time=time.perf_counter()
+    rest_pix_classify_time_cost=rest_pix_classify_time-feature_map_time
+    print('rest_pix_classify_time_cost',rest_pix_classify_time_cost)
+    print('---------------finish classify rest  each prediction pix--------------------')
+    # ************most time-consuming********************
+
+    ######### 区域生长阶段 ############
+    def isPointIn(point_x,point_y,x_b_min=0,x_b_max=x,y_b_min=0,y_b_max=y):
+        #判断点是否在某一区域内
+        if point_x>=x_b_min and point_x<x_b_max and point_y>=y_b_min and point_y<y_b_max:
+            return True
+        else:
+            return False
+
+    # 区域生长
+    def k_RG(point_x,point_y,k_stand,k_rg_map,k_rg_flag_map,k_size=3,thr=0.5):
+        # 8邻域
+        # 0.5
+        # 判断是否已经遍历过
+        if k_rg_flag_map[point_y,point_x]!=255:
+            k_rg_flag_map[point_y,point_x]=255 # 标记已经遍历
+            x_nears=[]
+            y_nears=[]
+            for i in range(k_size):
+                for j in range(k_size):
+                    x_near=point_x+i-1
+                    y_near=point_y+j-1
+                    if isPointIn(x_near,y_near):
+                        x_nears.append(x_near)
+                        y_nears.append(y_near)
+            num_near=len(x_nears)
+            # 是否属于k_stand区域
+            num_k=0
+            num_same_k=0
+            for i in range(num_near):
+                x_near,y_near=x_nears[i],y_nears[i]
+                if new_line_map[y_near,x_near]>0 :
+                    num_k+=1
+                    if is_K_same(k_stand,K_map[y_near,x_near]): num_same_k+=1
+            seeds_x=[]
+            seeds_y=[]
+            if num_same_k>=int(num_k*thr) and num_k>=int(num_near*thr):
+                k_rg_map[point_y,point_x]=255
+                seeds_x.append(point_x)
+                seeds_y.append(point_y)
+            # 四周生长
+            while len(seeds_x)>0:
+                seed_x=seeds_x.pop(0)
+                seed_y=seeds_y.pop(0)
+                for ii in range(k_size):
+                    for jj in range(k_size):
+                        seed_x_near=seed_x-1+ii
+                        seed_y_near=seed_y-1+jj
+                        if isPointIn(seed_x_near,seed_y_near) and k_rg_flag_map[seed_y_near,seed_x_near]==0:
+                            k_rg_flag_map[seed_y_near,seed_x_near]=255
+                            is_same_k_flag=False
+                            num_near_seed=0
+                            num_k_seed=0
+                            num_same_k_seed=0
+                            for iii in range(k_size):
+                                for jjj in range(k_size):
+                                    seed_x_near_near=seed_x_near-1+iii
+                                    seed_y_near_near=seed_y_near-1+jjj
+                                    if isPointIn(seed_x_near_near,seed_y_near_near):
+                                        num_near_seed+=1
+                                        if new_line_map[seed_y_near_near,seed_x_near_near]>0:
+                                            num_k_seed+=1
+                                            if is_K_same(k_stand,K_map[seed_y_near_near,seed_x_near_near]):
+                                                num_same_k_seed+=1
+                            if num_same_k_seed>=int(num_k_seed*thr) and num_k_seed>=int(num_near_seed*thr):is_same_k_flag=True
+                            if is_same_k_flag:
+                                k_rg_map[seed_y_near,seed_x_near]=255
+                                seeds_x.append(seed_x_near)
+                                seeds_y.append(seed_y_near)
+    
+    wall_vectors=[]
+    new_wall_mask=np.zeros((y,x),np.uint8)
+    k_rgs=[0,max_k,1,-1]
+    rg_flag_map=np.zeros((y,x),np.uint8)
+    for k_rg in k_rgs:
+        rg_map=np.zeros((y,x),np.uint8)
+        for x_rg in range(x):
+            for y_rg in range(y):
+                if new_line_map[y_rg,x_rg]>0 and is_K_same(K_map[y_rg,x_rg],k_rg) :
+                    k_RG(x_rg,y_rg,k_stand=k_rg,k_rg_map=rg_map,k_rg_flag_map=rg_flag_map)
+        
+        # print('---------------finish k_{} grow up--------------------'.format(k_rg))
+        
+        # 拟合轮廓成矩形
+        contours, _ = cv2.findContours(rg_map, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+        # print('---------------finish k_{} find Contours--------------------'.format(k_rg))
+        
+        # ***基于:轮廓面积>area_thr---过滤杂点
+        for cnt in contours:
+            area=cv2.contourArea(cnt)
+            if area<5:continue
+            # print('k_rg',k_rg)
+            # print('cnt',cnt)
+            cnts=findMaxMIOU(cnt,k_rg)
+            # print('len(cnts)',len(cnts))
+            for cnt_i in cnts:
+                # print('cnt_i',cnt_i)
+                # print('len(cnt_i)',len(cnt_i))
+                # print('cnt_i type',type(cnt_i))
+                rect= cv2.minAreaRect(cnt_i)
+                points=cv2.boxPoints(rect)
+                points=np.int0(points)
+                cv2.drawContours(new_wall_mask,[points],0,255,-1)
+                l1=max(int(((points[0][0]-points[1][0])**2)**0.5),int(((points[0][1]-points[1][1])**2)**0.5))
+                l2=max(int(((points[2][0]-points[1][0])**2)**0.5),int(((points[2][1]-points[1][1])**2)**0.5))
+                width_wall=min(l1,l2)
+                x_e_vector=(points[0][0]+points[1][0])/2 if width_wall==l1 else (points[2][0]+points[1][0])/2
+                y_e_vector=(points[0][1]+points[1][1])/2 if width_wall==l1 else (points[2][1]+points[1][1])/2
+                x_s_vector=(points[2][0]+points[3][0])/2 if width_wall==l1 else (points[0][0]+points[3][0])/2
+                y_s_vector=(points[2][1]+points[3][1])/2 if width_wall==l1 else (points[0][1]+points[3][1])/2
+                wall_vector={}
+                wall_vector['sPoint']=[x_e_vector,y_e_vector]
+                wall_vector['ePoint']=[x_s_vector,y_s_vector]
+                wall_vector['width']=width_wall
+                wall_vector['height']='default'
+                wall_vector['isStructural']=True
+                wall_vectors.append(json.dumps(wall_vector))
+
+        # print('---------------finish k_{} rect fit--------------------'.format(k_rg))
+    
+    end_time=time.perf_counter()
+    grow_fit_time_cost=end_time-feature_map_time
+    print('grow_fit_time_cost',grow_fit_time_cost)
+    print('---------------finish feature grow and rect fit--------------------')
+    total_time=end_time-start_time
+    print('total_time',total_time)
+    print('wall_lines_filter_time',wall_lines_filter_time_cost/total_time)
+    print('pix_classify_time',pix_classify_time_cost/total_time)
+    print('feature_map_time',feature_map_time_cost/total_time)
+    print('rest_pix_classify_time',rest_pix_classify_time_cost/total_time)
+    print('grow_fit_time',grow_fit_time_cost/total_time)
+    print('---------------finish this img--------------------')
+
+    return new_wall_mask, wall_lines
