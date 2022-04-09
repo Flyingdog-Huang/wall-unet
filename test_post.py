@@ -8,15 +8,23 @@ from os import listdir
 from os.path import splitext
 
 # path
-vector_path='../vector_test/'
-vector_img_path='../vector_test/img/'
-vector_imgo_path='../vector_test/img_o/'
-vector_mask_path='../vector_test/mask/'
-vector_pre_path='../vector_test/predict/'
-vector_prePost_path='../vector_test/pre_post/'
-vector_vec_path='../vector_test/vector/'
-vector_wallLines_path='../vector_test/wall_lines/'
-vector_allLines_path='../vector_test/all_lines/'
+# vector_path='../vector_test/'
+# vector_img_path='../vector_test/img/'
+# vector_imgo_path='../vector_test/img_o/'
+# vector_mask_path='../vector_test/mask/'
+# vector_pre_path='../vector_test/predict/'
+# vector_prePost_path='../vector_test/pre_post/'
+# vector_vec_path='../vector_test/vector/'
+# vector_wallLines_path='../vector_test/wall_lines/'
+# vector_allLines_path='../vector_test/all_lines/'
+
+# bug path
+vector_path='../vector_test/bug/'
+vector_img_path=vector_path+'img/'
+vector_wallLines_path=vector_path+'wall_lines/'
+vector_pre_path=vector_path+'predict/'
+vector_vec_path=vector_path+'vector/'
+
 
 # get img name
 img_name_list=[splitext(file)[0] for file in listdir(vector_img_path) if file.endswith('.png') or file.endswith('.jpg')]
