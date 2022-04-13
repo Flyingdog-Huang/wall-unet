@@ -18,6 +18,7 @@ from utils.miou import IOU, MIOU
 import numpy as np
 from torchvision.transforms import transforms
 from utils.data_augmentation import tensor_img_mask_aug
+from deeplabv3P import DeepLab
 
 # path
 # dir_img = Path('./data/imgs/')
@@ -45,18 +46,20 @@ from utils.data_augmentation import tensor_img_mask_aug
 # dir_img = Path('../../../../data/floorplan/car/imgs/train/')
 # dir_mask = Path('../../../../data/floorplan/car/imgs/masks/')
 
-# private data set
+# JD private data set
 # dir_img = Path('../../../../data/floorplan/private/train/img/')
 # dir_mask = Path('../../../../data/floorplan/private/train/mask2/')
 # dir_img = Path('../../../../data/floorplan/JD_clean/img/')
 # dir_mask = Path('../../../../data/floorplan/JD_clean/mask/')
+dir_img = Path('../../../../data/floorplan/after_resize/img/')
+dir_mask = Path('../../../../data/floorplan/after_resize/mask/')
 
 # merge data set
 # dir_img = Path('../../../../data/floorplan/r3d_cvc_pri/imgs/')
 # dir_mask = Path('../../../../data/floorplan/r3d_cvc_pri/masks/')
 
-dir_img = Path('../data/test/img/')
-dir_mask = Path('../data/test/mask/')
+# dir_img = Path('../data/test/img/')
+# dir_mask = Path('../data/test/mask/')
 
 dir_checkpoint = Path('../checkpoints/')
 
@@ -70,8 +73,8 @@ is_aug = False
 # is_aug = True  
 
 # shift window
-# is_sw = False
-is_sw = True  
+is_sw = False
+# is_sw = True  
 
 # multi-GPU
 # is_gpus = False
@@ -411,11 +414,11 @@ def train_net(net,
                         **histograms
                     })
     
-        # # just each epoch
+        # just each epoch
         if save_checkpoint:
             Path(dir_checkpoint).mkdir(parents=True, exist_ok=True)
             model_name=str(dir_checkpoint /
-                    'checkpoint_epoch{}_priclean_sw512_BCE_unet_iou{}.pth'.format(epoch, miou_epoch))
+                    'checkpoint_epoch{}_jd_clean_resize_BCE_dlv3+_iou{}.pth'.format(epoch, miou_epoch))
             if is_gpus:
                 torch.save(net.module.state_dict(),model_name)
             else:
@@ -427,7 +430,7 @@ def train_net(net,
     if save_checkpoint:
         Path(dir_checkpoint).mkdir(parents=True, exist_ok=True)
         final_model_name=str(dir_checkpoint /
-                'checkpoint_epoch{}_priclean_sw512_BCE_unet_iou{}.pth'.format(epochs, miou_epoch))
+                'checkpoint_epoch{}_jd_clean_resize_BCE_dlv3+_iou{}.pth'.format(epochs, miou_epoch))
         if is_gpus:
             torch.save(net.module.state_dict(),final_model_name)
         else:
@@ -440,7 +443,7 @@ def get_args():
     parser = argparse.ArgumentParser(
         description='Train the UNet on images and target masks')
     parser.add_argument('--epochs', '-e', metavar='E', type=int,
-                        default=5, # 100
+                        default=100, 
                         help='Number of epochs')
     parser.add_argument('--batch-size', '-b', dest='batch_size', metavar='B', type=int,
                         default=1,
@@ -482,7 +485,8 @@ if __name__ == '__main__':
     # n_channels=3 for RGB images
     # n_classes is the number of probabilities you want to get per pixel
 
-    net = UNet(n_channels=3, n_classes=2, bilinear=True)
+    # net = UNet(n_channels=3, n_classes=2, bilinear=True)
+    net = DeepLab(backbone='resnet', output_stride=16,num_classes=2)
     # net = UnetResnet50(n_channels=3, n_classes=2)
     # net =hrnet48(n_channels=3, n_classes=2)
     # net =Unet_p1(n_channels=3, n_classes=2)
