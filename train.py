@@ -53,6 +53,7 @@ from deeplabv3P import DeepLab
 # dir_mask = Path('../../../../data/floorplan/JD_clean/mask/')
 # dir_img = Path('../../../../data/floorplan/after_resize/img/')
 # dir_mask = Path('../../../../data/floorplan/after_resize/mask/')
+
 # PC
 dir_img = Path('../../../FloorPlan/2-Dataset/JD_clean_size/after_resize/img/')
 dir_mask = Path(
@@ -124,7 +125,7 @@ def train_net(net,
     # print()
     # print('-------------------------------------------------------')
     # print('Create data loaders')
-    loader_args = dict(batch_size=batch_size, num_workers=2, pin_memory=True)
+    loader_args = dict(batch_size=batch_size, num_workers=8, pin_memory=True)
     train_loader = DataLoader(train_set, shuffle=True, **loader_args)
     val_loader = DataLoader(val_set, shuffle=False,
                             drop_last=True, **loader_args)
@@ -471,7 +472,7 @@ def get_args():
                         default=100,
                         help='Number of epochs')
     parser.add_argument('--batch-size', '-b', dest='batch_size', metavar='B', type=int,
-                        default=1,
+                        default=64,
                         help='Batch size')
     parser.add_argument('--learning-rate', '-l',  metavar='LR',  type=float,
                         default=0.00001,
@@ -480,7 +481,7 @@ def get_args():
                         default=False,
                         help='Load model from a .pth file')
     parser.add_argument('--scale', '-s', type=float,
-                        default=0.43,
+                        default=1,
                         help='Downscaling factor of the images')
     parser.add_argument('--validation', '-v',  dest='val', type=float,
                         default=10.0,
