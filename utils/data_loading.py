@@ -16,8 +16,8 @@ CVC_FP_className_list = [
     'Window'
 ]
 
-window_size=512 
-# window_size=1024
+# window_size=512 
+window_size=1024
 thred_ratio=0.01
 
 # 自适应图像滑动分块

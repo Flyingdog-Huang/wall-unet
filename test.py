@@ -19,13 +19,21 @@ from utils.wall_vector import wall_vector
 from os import listdir
 from os.path import splitext
 import time
+from torchvision import transforms as T
 
-# base
-dir_img = '../../data/JD_clean/img/'
-dir_mask = '../../data/JD_clean/mask/'
-dir_pre = '../../data/JD_clean/predict/'
-dir_vec = '../../data/JD_clean/vector/'
-dir_miou = '../../data/JD_clean/'
+# # base
+# dir_img = '../../data/JD_clean/img/'
+# dir_mask = '../../data/JD_clean/mask/'
+# dir_pre = '../../data/JD_clean/predict/'
+# dir_vec = '../../data/JD_clean/vector/'
+# dir_miou = '../../data/JD_clean/'
+
+# test bug
+dir_img = '../test/img/'
+dir_pre = '../test/predict/'
+dir_vec = '../test/vector/'
+
+# pth path
 # dir_pth = '../checkpoints/checkpoint_epoch41_priclean_swf_BCE_unet_iou91.pth'
 # dir_pth = '../checkpoints/checkpoint_epoch16_priclean_sw_BCE_unet_iou83.pth'
 dir_pth = '../../checkpoints/sw_unet_93.pth'
@@ -219,6 +227,43 @@ def test(device,
     return miou
 
 
+def test_bug(net, img, device):
+    # predict
+    img_grids = make_grid(img.shape[:2], window=1024)
+    mask_pred = torch.zeros(
+        1, net.n_classes, img.shape[0], img.shape[1]).to(device=device)
+    weight_mask = torch.zeros(
+        1, 1, img.shape[0], img.shape[1]).to(device=device)
+    for points in img_grids:
+        x1, x2, y1, y2 = points
+        weight_mask[:, :, y1:y2, x1:x2] += 1
+        img_i = img[y1:y2, x1:x2, :]/255
+        img_i = img_i.transpose((2, 0, 1))
+        img_i = torch.from_numpy(img_i).float().to(device=device)
+        img_i = img_i.unsqueeze(0)
+        with torch.no_grad():
+            mask_pred[:, :, y1:y2,
+                      x1:x2] += net.forward(img_i).to(device=device)
+    mask_pred = mask_pred/weight_mask
+
+    # process pridiction data - (h,w,c)
+    probs = F.softmax(mask_pred, dim=1)[0]
+    tf = T.Compose([T.ToPILImage(),
+                    T.Resize((img.shape[0], img.shape[1])),
+                    T.ToTensor()])
+    full_mask = tf(probs.cpu()).squeeze()
+    full_mask = F.one_hot(full_mask.argmax(
+        dim=0), net.n_classes).permute(2, 0, 1).numpy()
+    result_img = np.uint8(full_mask[1]*255)
+    img_pre = np.transpose(
+        np.array([result_img, result_img, result_img]), (1, 2, 0))
+
+    #  verctorizaton
+    img_vec = wall_vector(img, img_pre)
+
+    return img_pre, img_vec
+
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)
     miou = []
@@ -246,92 +291,112 @@ if __name__ == '__main__':
         dir_img) if file.endswith('.png') or file.endswith('.jpg')]
     num_data = len(name_list)
     logging.info(f'Data number {num_data}')
-    miou_pre = 0
-    miou_vec = 0
-    num_test = 0
+
+    # test bug
     for name in tqdm(name_list, total=num_data, desc='Test round', unit='pic', leave=False):
         # load img and label
         print('name', name)
         img_name = str(dir_img)+name+'.png'
-        mask_name = str(dir_mask)+name+'_mask.png'
         img = cv2.imread(img_name)
         if img is None:
             img_name = str(dir_img)+name+'.jpg'
             img = cv2.imread(img_name)
         # print('img',img)
-        mask = cv2.imread(mask_name)
         # print('img.shape',img.shape)
+        predict_name = str(dir_pre)+name+'_pre.png'
+        vector_name = str(dir_vec)+name+'_vec.png'
+        img_pre, img_vec = test_bug(net, img, device)
+        cv2.imwrite(predict_name, img_pre)
+        cv2.imwrite(vector_name, img_vec)
+    print('finish test bug')
+    
+    # test dataset
+    # miou_pre = 0
+    # miou_vec = 0
+    # num_test = 0
+    # for name in tqdm(name_list, total=num_data, desc='Test round', unit='pic', leave=False):
+    #     # load img and label
+    #     print('name', name)
+    #     img_name = str(dir_img)+name+'.png'
+    #     mask_name = str(dir_mask)+name+'_mask.png'
+    #     img = cv2.imread(img_name)
+    #     if img is None:
+    #         img_name = str(dir_img)+name+'.jpg'
+    #         img = cv2.imread(img_name)
+    #     # print('img',img)
+    #     mask = cv2.imread(mask_name)
+    #     # print('img.shape',img.shape)
 
-        # resize img shape
-        # reduce_rate=max(img.shape[0],img.shape[1])//1000+1
-        # # print('reduce_rate',reduce_rate)
-        # img_s=cv2.resize(img,None,fx=1/reduce_rate,fy=1/reduce_rate,interpolation=cv2.INTER_LINEAR)
-        # mask_s=cv2.resize(mask,None,fx=1/reduce_rate,fy=1/reduce_rate,interpolation=cv2.INTER_LINEAR)
-        # # print('img.shape',img.shape)
-        # train_size=2
-        # img_t=cv2.resize(img,None,fx=1/train_size,fy=1/train_size,interpolation=cv2.INTER_LINEAR)
-        # mask_t=cv2.resize(mask,None,fx=1/train_size,fy=1/train_size,interpolation=cv2.INTER_LINEAR)
+    #     # resize img shape
+    #     # reduce_rate=max(img.shape[0],img.shape[1])//1000+1
+    #     # # print('reduce_rate',reduce_rate)
+    #     # img_s=cv2.resize(img,None,fx=1/reduce_rate,fy=1/reduce_rate,interpolation=cv2.INTER_LINEAR)
+    #     # mask_s=cv2.resize(mask,None,fx=1/reduce_rate,fy=1/reduce_rate,interpolation=cv2.INTER_LINEAR)
+    #     # # print('img.shape',img.shape)
+    #     # train_size=2
+    #     # img_t=cv2.resize(img,None,fx=1/train_size,fy=1/train_size,interpolation=cv2.INTER_LINEAR)
+    #     # mask_t=cv2.resize(mask,None,fx=1/train_size,fy=1/train_size,interpolation=cv2.INTER_LINEAR)
 
-        # 统计用时
-        start_time = time.perf_counter()
-        # test IOU
-        # miou_test=test_miou(net,device,name,img,mask,is_vector)
-        # print('img.shape is {} , MIOU is {}'.format(img.shape,miou_test))
-        # miou_test_s=test_miou(net,device,name,img_s,mask_s,is_vector)
-        # print('img.shape is {} , MIOU is {}'.format(img_s.shape,miou_test_s))
-        # print('img.shape is {} '.format(img_t.shape))
-        # if max(img_t.shape)>2000:
-        #     print('img size is too large!')
-        #     continue
-        num_test += 1
-        # logging.info(f'mask shape {mask.shape}')
-        miou_test_t = test_miou(net, device, name, img, mask, is_vector)
-        print('MIOU is {}'.format(miou_test_t))
+    #     # 统计用时
+    #     start_time = time.perf_counter()
+    #     # test IOU
+    #     # miou_test=test_miou(net,device,name,img,mask,is_vector)
+    #     # print('img.shape is {} , MIOU is {}'.format(img.shape,miou_test))
+    #     # miou_test_s=test_miou(net,device,name,img_s,mask_s,is_vector)
+    #     # print('img.shape is {} , MIOU is {}'.format(img_s.shape,miou_test_s))
+    #     # print('img.shape is {} '.format(img_t.shape))
+    #     # if max(img_t.shape)>2000:
+    #     #     print('img size is too large!')
+    #     #     continue
+    #     num_test += 1
+    #     # logging.info(f'mask shape {mask.shape}')
+    #     miou_test_t = test_miou(net, device, name, img, mask, is_vector)
+    #     print('MIOU is {}'.format(miou_test_t))
 
-        # show MIOU on time
-        miou_pre = miou_pre+miou_test_t[0]
-        print('miou_pre', miou_pre/num_test)
-        if is_vector:
-            miou_vec = miou_vec+miou_test_t[1]
-            print('miou_vec', miou_vec/num_test)
+    #     # show MIOU on time
+    #     miou_pre = miou_pre+miou_test_t[0]
+    #     print('miou_pre', miou_pre/num_test)
+    #     if is_vector:
+    #         miou_vec = miou_vec+miou_test_t[1]
+    #         print('miou_vec', miou_vec/num_test)
 
-        # 统计用时
-        end_time = time.perf_counter()
-        # print('test time',end_time-start_time)
+    #     # 统计用时
+    #     end_time = time.perf_counter()
+    #     # print('test time',end_time-start_time)
 
-        # save msg
-        miou_dict = {}
-        miou_dict['name'] = name
-        miou_dict['shape'] = [img.shape[0], img.shape[1]]
-        miou_dict['pre miou'] = miou_test_t[0]
-        miou_dict['vector miou'] = miou_test_t[1] if len(
-            miou_test_t) == 2 else None
-        miou_dict['cost time'] = end_time-start_time
-        miou.append(miou_dict)
-        # miou_pre+=miou_test_t[0]
-        # if is_vector:
-        #     miou_vec += miou_test_t[1]
+    #     # save msg
+    #     miou_dict = {}
+    #     miou_dict['name'] = name
+    #     miou_dict['shape'] = [img.shape[0], img.shape[1]]
+    #     miou_dict['pre miou'] = miou_test_t[0]
+    #     miou_dict['vector miou'] = miou_test_t[1] if len(
+    #         miou_test_t) == 2 else None
+    #     miou_dict['cost time'] = end_time-start_time
+    #     miou.append(miou_dict)
+    #     # miou_pre+=miou_test_t[0]
+    #     # if is_vector:
+    #     #     miou_vec += miou_test_t[1]
 
-    # compute pre MIOU
-    miou_pre = miou_pre/num_data
+    # # compute pre MIOU
+    # miou_pre = miou_pre/num_data
 
-    # save result as txt
-    # txt_name=dir_miou+str(int(float(miou_pre*100)))+'MIOU'+str(int(float(miou_vec*100)))+'_improv'+str(int(float(miou_improv*100)))+'.txt'
-    txt_name = dir_miou+str(int(float(miou_pre*100)))+'MIOU'+'.txt'
-    if is_vector:
-        # MIOU change after vector
-        miou_improv = 0
-        miou_vec = miou_vec/num_data
-        miou_improv = miou_vec-miou_pre
-        print('miou improve: ', float(miou_improv))
-        # rename txt_name
-        txt_name = dir_miou+str(int(float(miou_pre*100))) + \
-            '-'+str(int(float(miou_vec*100)))+'MIOU'+'.txt'
-    with open(txt_name, 'w') as file:
-        [file.write(str(it)+'\n') for it in miou]
-        file.close()
+    # # save result as txt
+    # # txt_name=dir_miou+str(int(float(miou_pre*100)))+'MIOU'+str(int(float(miou_vec*100)))+'_improv'+str(int(float(miou_improv*100)))+'.txt'
+    # txt_name = dir_miou+str(int(float(miou_pre*100)))+'MIOU'+'.txt'
+    # if is_vector:
+    #     # MIOU change after vector
+    #     miou_improv = 0
+    #     miou_vec = miou_vec/num_data
+    #     miou_improv = miou_vec-miou_pre
+    #     print('miou improve: ', float(miou_improv))
+    #     # rename txt_name
+    #     txt_name = dir_miou+str(int(float(miou_pre*100))) + \
+    #         '-'+str(int(float(miou_vec*100)))+'MIOU'+'.txt'
+    # with open(txt_name, 'w') as file:
+    #     [file.write(str(it)+'\n') for it in miou]
+    #     file.close()
 
-    # show MIOU
-    print('miou_pre', miou_pre)
-    if is_vector:
-        print('miou_vec', miou_vec)
+    # # show MIOU
+    # print('miou_pre', miou_pre)
+    # if is_vector:
+    #     print('miou_vec', miou_vec)

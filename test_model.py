@@ -18,20 +18,22 @@ if __name__ == '__main__':
     # model= hrnet48_p1(3,2).cuda(device=device)
     # model = UNet_fp16(n_channels=3, n_classes=2).cuda(device=device)
     # model = UNet_fp4(n_channels=3, n_classes=2).cuda(device=device)
-
+    model.train()
     k = 8
     time_start = time.perf_counter()
-    total_loop = 12
+    total_loop = 1
     batch_size = 1
-    loop_num = total_loop//batch_size
+    loop_num = total_loop // batch_size
     torch.cuda.empty_cache()
     # img = torch.rand((batch_size, 3, 256*k, 256*k)).to(device=device)
-    img = torch.rand((batch_size, 3, 2480, 3508)).to(device=device)
+    img = torch.rand((batch_size, 3, 3508, 2480)).to(device=device)
     print('input size', img.size())
+    # mask = None
     for i in range(loop_num):
         # img=torch.rand((1,3,256*k,256*k)).cuda(device=device)
         with torch.no_grad():
             mask = model(img)
-        # print(mask.shape)
-    print('output size', mask.size())
-    print('cost time:', time.perf_counter()-time_start)
+            # print(mask.shape)
+            print('output size', mask.size())
+    # print('output size', mask.size())
+    print('cost time:', time.perf_counter() - time_start)
