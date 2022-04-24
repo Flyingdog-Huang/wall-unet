@@ -30,7 +30,7 @@ def randError(mask_pred,mask_true):
 '''
 
 
-def evaluate(net, dataloader, device):
+def evaluate(net, dataloader, device, is_gpus=False):
     net.eval()
     num_val_batches = len(dataloader)
     dice_onehot_bg = 0
@@ -39,11 +39,14 @@ def evaluate(net, dataloader, device):
     dice_softmax_nobg = 0
     dice_score = 0
     miou_eva = 0
-    class_iou_eva=[]
+    class_iou_eva = []
 
     # acc compute
     num_correct = 0
     num_pixels = 0
+
+    input_channels = net.module.n_channels if is_gpus else net.n_channels
+    output_classes = net.module.n_classes if is_gpus else net.n_classes
 
     # iterate over the validation set
     for batch in tqdm(dataloader,
@@ -59,7 +62,8 @@ def evaluate(net, dataloader, device):
         image = image.to(device=device, dtype=torch.float32)
         # mask_true = mask_true.to(device=device, dtype=torch.float32)
         mask_true = mask_true.to(device=device, dtype=torch.long)
-        mask_true = F.one_hot(torch.squeeze(mask_true,dim=1), net.n_classes).permute(0, 3, 1, 2).float()
+        mask_true = F.one_hot(torch.squeeze(mask_true, dim=1),
+                              output_classes).permute(0, 3, 1, 2).float()
         # mask_true = mask_true.float()
         # mask_true = F.one_hot(mask_true.argmax(dim=1),
         #                       net.n_classes).permute(0, 3, 1, 2).float()
@@ -69,13 +73,17 @@ def evaluate(net, dataloader, device):
             mask_pred = net(image)
 
             # convert to one-hot format
-            if net.n_classes == 1:
+            if output_classes == 1:
                 mask_pred = (F.sigmoid(mask_pred) > 0.5).float()
                 # compute the Dice score
-                dice_score += dice_coeff(mask_pred, mask_true, reduce_batch_first=False)
+                dice_score += dice_coeff(mask_pred,
+                                         mask_true,
+                                         reduce_batch_first=False)
             else:
                 mask_pred_softmax = F.softmax(mask_pred, dim=1).float()
-                mask_pred_onehot = F.one_hot(mask_pred_softmax.argmax(dim=1),net.n_classes).permute(0, 3, 1, 2).float()
+                mask_pred_onehot = F.one_hot(mask_pred_softmax.argmax(dim=1),
+                                             output_classes).permute(
+                                                 0, 3, 1, 2).float()
 
                 # save the eva as pic
                 # mask=Tensor.cpu(mask_pred[0])
@@ -92,37 +100,46 @@ def evaluate(net, dataloader, device):
                 # dice_score += multiclass_dice_coeff(mask_pred, mask_true, reduce_batch_first=True)
                 # print('----------------------use softmax to compute dice----------------------')
 
-                #ignoring background
-                dice_softmax_nobg += multiclass_dice_coeff(mask_pred_softmax[:, 1:, ...], mask_true[:, 1:, ...],
+                # ignoring background
+                dice_softmax_nobg += multiclass_dice_coeff(
+                    mask_pred_softmax[:, 1:, ...],
+                    mask_true[:, 1:, ...],
                     reduce_batch_first=True)
 
                 # consider background
-                dice_softmax_bg += multiclass_dice_coeff(mask_pred_softmax, mask_true, reduce_batch_first=True)
+                dice_softmax_bg += multiclass_dice_coeff(
+                    mask_pred_softmax, mask_true, reduce_batch_first=True)
 
                 # print('----------------------use onehot to compute dice----------------------')
 
                 #  ignoring background
-                dice_onehot_nobg += multiclass_dice_coeff(mask_pred_onehot[:, 1:, ...],mask_true[:, 1:, ...],reduce_batch_first=True)
+                dice_onehot_nobg += multiclass_dice_coeff(
+                    mask_pred_onehot[:, 1:, ...],
+                    mask_true[:, 1:, ...],
+                    reduce_batch_first=True)
 
                 # consider background
-                dice_onehot_bg += multiclass_dice_coeff(mask_pred_onehot, mask_true, reduce_batch_first=True)
+                dice_onehot_bg += multiclass_dice_coeff(
+                    mask_pred_onehot, mask_true, reduce_batch_first=True)
                 # print('---------------finish evaluate-----------------------------')
 
                 # compute the acc score, ignoring background
-                num_correct += (mask_pred_onehot[:, 1:, ...] == mask_true[:, 1:, ...]).sum()
+                num_correct += (mask_pred_onehot[:, 1:,
+                                                 ...] == mask_true[:, 1:,
+                                                                   ...]).sum()
                 num_pixels += torch.numel(mask_pred[:, 1:, ...])
 
                 # miou no bg
-                class_iou, miou = MIOU(mask_pred_onehot[:,1:,...], mask_true[:,1:,...])
+                class_iou, miou = MIOU(mask_pred_onehot[:, 1:, ...],
+                                       mask_true[:, 1:, ...])
                 miou_eva += miou
 
-                if len(class_iou)!=len(class_iou_eva):
-                    class_iou_eva=[0]*len(class_iou)
+                if len(class_iou) != len(class_iou_eva):
+                    class_iou_eva = [0] * len(class_iou)
                 for index_iou in range(len(class_iou)):
-                    class_iou_eva[index_iou]+=class_iou[index_iou]
-                    
+                    class_iou_eva[index_iou] += class_iou[index_iou]
 
     net.train()
-    class_iou_eva=np.array(class_iou_eva)
+    class_iou_eva = np.array(class_iou_eva)
     return class_iou_eva / num_val_batches, miou_eva / num_val_batches, dice_softmax_nobg / num_val_batches, dice_softmax_bg / num_val_batches, dice_onehot_nobg / num_val_batches, dice_onehot_bg / num_val_batches, num_correct / num_pixels
     return dice_score / num_val_batches, dice_score_softmax / num_val_batches, num_correct / num_pixels

@@ -92,6 +92,7 @@ class hrnet48(nn.Module):
     def forward(self, x):
         # keep layer
         x_keep = self.keeplayer(x)
+        print(x_keep.size())
         #  stem stage
         x1_stem = x_keep  # self.stemStage(x)
         # stage 1
@@ -152,6 +153,7 @@ class hrnet48(nn.Module):
         x1_hrnet = self.fusion_cat(self.conTrans2_1(x2_fus), x1_fus)
         x1_hrnet = self.fusion_cat(self.conTrans3_1(x3_fus), x1_hrnet)
         x1_hrnet = self.fusion_cat(self.conTrans4_1(x4_fus), x1_hrnet)
+        print(x1_hrnet.size())
         # connect stem
         # x_fus=self.fusion_cat(self.keep_up(x1_hrnet),x_keep)
         # change channel

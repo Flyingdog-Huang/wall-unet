@@ -51,13 +51,13 @@ from deeplabv3P import DeepLab
 # dir_mask = Path('../../../../data/floorplan/private/train/mask2/')
 # dir_img = Path('../../../../data/floorplan/JD_clean/img/')
 # dir_mask = Path('../../../../data/floorplan/JD_clean/mask/')
-# dir_img = Path('../../../../data/floorplan/after_resize/img/')
-# dir_mask = Path('../../../../data/floorplan/after_resize/mask/')
+dir_img = Path('../../../../data/floorplan/after_resize/img/')
+dir_mask = Path('../../../../data/floorplan/after_resize/mask/')
 
-# PC
-dir_img = Path('../../../FloorPlan/2-Dataset/JD_clean_size/after_resize/img/')
-dir_mask = Path(
-    '../../../FloorPlan/2-Dataset/JD_clean_size/after_resize/mask/')
+# # PC test
+# dir_img = Path('../../../FloorPlan/2-Dataset/JD_clean_size/after_resize/img/')
+# dir_mask = Path(
+#     '../../../FloorPlan/2-Dataset/JD_clean_size/after_resize/mask/')
 
 # merge data set
 # dir_img = Path('../../../../data/floorplan/r3d_cvc_pri/imgs/')
@@ -66,8 +66,7 @@ dir_mask = Path(
 # dir_img = Path('../data/test/img/')
 # dir_mask = Path('../data/test/mask/')
 
-# dir_checkpoint = Path('../checkpoints/')
-dir_checkpoint = Path('../../checkpoints/')
+dir_checkpoint = Path('../checkpoints/')
 
 # training strategy
 # aug on loading
@@ -79,8 +78,8 @@ is_aug = False
 # is_aug = True
 
 # shift window
-is_sw = False
-# is_sw = True
+# is_sw = False
+is_sw = True
 
 # multi-GPU
 is_gpus = False
@@ -125,10 +124,12 @@ def train_net(net,
     # print()
     # print('-------------------------------------------------------')
     # print('Create data loaders')
-    loader_args = dict(batch_size=batch_size, num_workers=8, pin_memory=True)
+    loader_args = dict(batch_size=batch_size, num_workers=2, pin_memory=True)
     train_loader = DataLoader(train_set, shuffle=True, **loader_args)
-    val_loader = DataLoader(val_set, shuffle=False,
-                            drop_last=True, **loader_args)
+    val_loader = DataLoader(val_set,
+                            shuffle=False,
+                            drop_last=True,
+                            **loader_args)
 
     # (Initialize logging)
     experiment = wandb.init(project='U-Net', resume='allow', anonymous='must')
@@ -155,8 +156,10 @@ def train_net(net,
 
     # 4. Set up the optimizer, the loss, the learning rate scheduler and the loss scaling for AMP
     # optimizer = optim.Adam(net.parameters(), lr=learning_rate, betas=[0.9,0.99], weight_decay=1e-8)
-    optimizer = optim.RMSprop(net.parameters(
-    ), lr=learning_rate, weight_decay=1e-8, momentum=0.9)  # momentum=0.99
+    optimizer = optim.RMSprop(net.parameters(),
+                              lr=learning_rate,
+                              weight_decay=1e-8,
+                              momentum=0.9)  # momentum=0.99
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, 'max', patience=100)  # goal: maximize Dice score, 2
     # scheduler=optim.lr_scheduler.StepLR(optimizer,step_size=90,gamma=0.5)
@@ -183,7 +186,9 @@ def train_net(net,
         net.train()
         epoch_loss = 0
         miou_epoch = 0
-        with tqdm(total=n_train, desc=f'Epoch {epoch + 1}/{epochs}', unit='img') as pbar:
+        with tqdm(total=n_train,
+                  desc=f'Epoch {epoch + 1}/{epochs}',
+                  unit='img') as pbar:
             for batch in train_loader:
                 # print()
                 # print('-------------------------------------------------------')
@@ -247,8 +252,8 @@ def train_net(net,
                         images, true_masks)
 
                 images = images.to(device=device, dtype=torch.float32)
-                true_masks = true_masks.to(
-                    device=device, dtype=torch.long)  # tensor(n,c,w,h)
+                true_masks = true_masks.to(device=device,
+                                           dtype=torch.long)  # tensor(n,c,w,h)
                 # print()
                 # print('***********************************************')
                 # print()
@@ -265,8 +270,10 @@ def train_net(net,
                 # true_masks_onehot = F.one_hot(true_masks.argmax(dim=1),
                 #                        net.n_classes).permute(0, 3, 1,
                 #                                               2).float()
-                true_masks_onehot = F.one_hot(torch.squeeze(
-                    true_masks, dim=1), output_classes).permute(0, 3, 1, 2).float().to(device=device)
+                true_masks_onehot = F.one_hot(torch.squeeze(true_masks, dim=1),
+                                              output_classes).permute(
+                                                  0, 3, 1,
+                                                  2).float().to(device=device)
 
                 # print()
                 # print('***********************************************')
@@ -274,6 +281,7 @@ def train_net(net,
                 # print()
 
                 with torch.cuda.amp.autocast(enabled=amp):
+                    # print('input size:', images.size())
                     masks_pred = net(images)
 
                     # adjust true_masks size
@@ -293,8 +301,8 @@ def train_net(net,
                     # print('true_masks.shape: ',true_masks.shape)
 
                     true_masks_CE = torch.squeeze(true_masks, dim=1)
-                    true_masks_CE = true_masks_CE.to(
-                        device=device, dtype=torch.int64)
+                    true_masks_CE = true_masks_CE.to(device=device,
+                                                     dtype=torch.int64)
                     # print('true_masks_CE.shape: ',true_masks_CE.shape)
                     CE_loss = CE_criterion(masks_pred, true_masks_CE)
 
@@ -307,8 +315,8 @@ def train_net(net,
                     # print('masks_pred.shape: ',masks_pred.shape)
                     # print('masks_pred.numpy(): ',Tensor.cpu(masks_pred).detach().numpy())
                     masks_pred_softmax = F.softmax(masks_pred, dim=1).float()
-                    MSE_loss = MSE_criterion(
-                        masks_pred_softmax, true_masks_onehot)
+                    MSE_loss = MSE_criterion(masks_pred_softmax,
+                                             true_masks_onehot)
                     # print()
                     # print('masks_pred_softmax.shape: ',masks_pred_softmax.shape)
                     # print('masks_pred_softmax.numpy(): ',Tensor.cpu(masks_pred_softmax).detach().numpy())
@@ -316,15 +324,13 @@ def train_net(net,
                     # print()
                     # print('masks_pred_max.shape: ',masks_pred_max.shape)
                     # print('masks_pred_max.numpy(): ',Tensor.cpu(masks_pred_max).detach().numpy())
-                    mask_pred_onehot = F.one_hot(
-                        masks_pred_max, output_classes).permute(0, 3, 1, 2).float()
+                    mask_pred_onehot = F.one_hot(masks_pred_max,
+                                                 output_classes).permute(
+                                                     0, 3, 1, 2).float()
                     # MIOU no bg
-                    # print('mask_pred_onehot size',
-                    #       mask_pred_onehot[:, 1:, ...].size())
-                    # print('true_masks_onehot size',
-                    #       true_masks_onehot[:, 1:, ...].size())
                     class_iou_train, miou_train = MIOU(
-                        mask_pred_onehot[:, 1:, ...], true_masks_onehot[:, 1:, ...])
+                        mask_pred_onehot[:, 1:, ...], true_masks_onehot[:, 1:,
+                                                                        ...])
                     num_class = 0
                     for iou in class_iou_train:
                         num_class += 1
@@ -333,8 +339,9 @@ def train_net(net,
 
                     # print('mask_pred_onehot.shape: ',mask_pred_onehot.shape)
                     # print('mask_pred_onehot.numpy(): ',Tensor.cpu(mask_pred_onehot).detach().numpy())
-                    diceloss = dice_loss(
-                        masks_pred_softmax, true_masks_onehot.float(), multiclass=True)
+                    diceloss = dice_loss(masks_pred_softmax,
+                                         true_masks_onehot.float(),
+                                         multiclass=True)
                     # print()
 
                     # print()
@@ -395,17 +402,18 @@ def train_net(net,
                     # print('-------------------------------------------------------')
                     # print('Evaluation round ')
                     histograms = {}
-                    parameters = net.module.named_parameters() if is_gpus else net.named_parameters()
+                    parameters = net.module.named_parameters(
+                    ) if is_gpus else net.named_parameters()
                     for tag, value in parameters:
                         tag = tag.replace('/', '.')
-                        histograms['Weights/' +
-                                   tag] = wandb.Histogram(value.data.cpu())
-                        histograms['Gradients/' +
-                                   tag] = wandb.Histogram(value.grad.data.cpu())
+                        histograms['Weights/' + tag] = wandb.Histogram(
+                            value.data.cpu())
+                        histograms['Gradients/' + tag] = wandb.Histogram(
+                            value.grad.data.cpu())
 
                     # val_score,val_score_soft,acc = evaluate(net, val_loader, device)
                     class_iou_eva, miou_eva, dice_softmax_nobg, dice_softmax_bg, dice_onehot_nobg, dice_onehot_bg, acc = evaluate(
-                        net, val_loader, device)
+                        net, val_loader, device, is_gpus=is_gpus)
 
                     val_score = dice_onehot_nobg
                     miou_epoch = miou_eva
@@ -417,23 +425,33 @@ def train_net(net,
                     num_class = 0
                     for iou in class_iou_eva:
                         num_class += 1
-                        experiment.log(
-                            {'Validation NO.{}class IOU'.format(num_class): iou})
+                        experiment.log({
+                            'Validation NO.{}class IOU'.format(num_class):
+                            iou
+                        })
 
                     logging.info('Validation Dice score: {}'.format(val_score))
                     logging.info('Validation MIOU score: {}'.format(miou_eva))
                     experiment.log({
-                        'learning rate': optimizer.param_groups[0]['lr'],
+                        'learning rate':
+                        optimizer.param_groups[0]['lr'],
                         # 'Dice softmax nobg': dice_softmax_nobg,
                         # 'Dice softmax bg': dice_softmax_bg,
-                        'Validation Dice onehot nobg': dice_onehot_nobg,
-                        'Validation MIOU': miou_eva,
+                        'Validation Dice onehot nobg':
+                        dice_onehot_nobg,
+                        'Validation MIOU':
+                        miou_eva,
                         # 'Dice onehot bg': dice_onehot_bg,
                         # 'PA': acc,
-                        'images':  wandb.Image(images[0].cpu()),
+                        'images':
+                        wandb.Image(images[0].cpu()),
                         'masks': {
-                            'true': wandb.Image(true_masks[0].float().cpu()),
-                            'pred': wandb.Image(torch.softmax(masks_pred, dim=1)[0].float().cpu()),
+                            'true':
+                            wandb.Image(true_masks[0].float().cpu()),
+                            'pred':
+                            wandb.Image(
+                                torch.softmax(masks_pred,
+                                              dim=1)[0].float().cpu()),
                         },
                         # 'step': global_step,
                         # 'epoch': epoch,
@@ -443,8 +461,10 @@ def train_net(net,
         # just each epoch
         if save_checkpoint:
             Path(dir_checkpoint).mkdir(parents=True, exist_ok=True)
-            model_name = str(dir_checkpoint /
-                             'checkpoint_epoch{}_jd_clean_resize_BCE_dlv3+_iou{}.pth'.format(epoch, miou_epoch))
+            model_name = str(
+                dir_checkpoint /
+                'checkpoint_epoch{}_jd_clean_resize_BCE_hrnet_sw1024_iou{}.pth'.
+                format(epoch, miou_epoch))
             if is_gpus:
                 torch.save(net.module.state_dict(), model_name)
             else:
@@ -455,8 +475,10 @@ def train_net(net,
     # just save the last one
     if save_checkpoint:
         Path(dir_checkpoint).mkdir(parents=True, exist_ok=True)
-        final_model_name = str(dir_checkpoint /
-                               'checkpoint_epoch{}_jd_clean_resize_BCE_dlv3+_iou{}.pth'.format(epochs, miou_epoch))
+        final_model_name = str(
+            dir_checkpoint /
+            'checkpoint_epoch{}_jd_clean_resize_BCE_hrnet_sw1024_iou{}.pth'.format(
+                epochs, miou_epoch))
         if is_gpus:
             torch.save(net.module.state_dict(), final_model_name)
         else:
@@ -468,25 +490,46 @@ def train_net(net,
 def get_args():
     parser = argparse.ArgumentParser(
         description='Train the UNet on images and target masks')
-    parser.add_argument('--epochs', '-e', metavar='E', type=int,
+    parser.add_argument('--epochs',
+                        '-e',
+                        metavar='E',
+                        type=int,
                         default=100,
                         help='Number of epochs')
-    parser.add_argument('--batch-size', '-b', dest='batch_size', metavar='B', type=int,
-                        default=64,
+    parser.add_argument('--batch-size',
+                        '-b',
+                        dest='batch_size',
+                        metavar='B',
+                        type=int,
+                        default=16,
                         help='Batch size')
-    parser.add_argument('--learning-rate', '-l',  metavar='LR',  type=float,
+    parser.add_argument('--learning-rate',
+                        '-l',
+                        metavar='LR',
+                        type=float,
                         default=0.00001,
-                        help='Learning rate',  dest='lr')
-    parser.add_argument('--load', '-f',  type=str,
+                        help='Learning rate',
+                        dest='lr')
+    parser.add_argument('--load',
+                        '-f',
+                        type=str,
                         default=False,
                         help='Load model from a .pth file')
-    parser.add_argument('--scale', '-s', type=float,
-                        default=1,
-                        help='Downscaling factor of the images')
-    parser.add_argument('--validation', '-v',  dest='val', type=float,
-                        default=10.0,
-                        help='Percent of the data that is used as validation (0-100)')
-    parser.add_argument('--amp', action='store_true',
+    parser.add_argument(
+        '--scale',
+        '-s',
+        type=float,
+        default=1, 
+        help='Downscaling factor of the images')
+    parser.add_argument(
+        '--validation',
+        '-v',
+        dest='val',
+        type=float,
+        default=10.0,
+        help='Percent of the data that is used as validation (0-100)')
+    parser.add_argument('--amp',
+                        action='store_true',
                         default=False,
                         help='Use mixed precision')
 
@@ -504,7 +547,7 @@ if __name__ == '__main__':
 
     logging.basicConfig(level=logging.INFO,
                         format='%(levelname)s: %(message)s')
-    cuda_name = 'cuda'  # 'cuda:1'
+    cuda_name = 'cuda:1' # 'cuda' 
     device = torch.device(cuda_name if torch.cuda.is_available() else 'cpu')
     logging.info(f'Main device {device}')
 
@@ -513,18 +556,17 @@ if __name__ == '__main__':
     # n_classes is the number of probabilities you want to get per pixel
 
     # net = UNet(n_channels=3, n_classes=2, bilinear=True)
-    net = DeepLab(backbone='resnet', output_stride=16, num_classes=2)
+    # net = DeepLab(backbone='resnet', output_stride=16, num_classes=2)
     # net = UnetResnet50(n_channels=3, n_classes=2)
-    # net =hrnet48(n_channels=3, n_classes=2)
+    net =hrnet48(n_channels=3, n_classes=2)
     # net =Unet_p1(n_channels=3, n_classes=2)
     # net = hrnet48_p1(n_channels=3, n_classes=2)
     # net = UNet_fp4(n_channels=3, n_classes=2)
     # net = UNet_fp16(n_channels=3, n_classes=3)
 
-    logging.info(
-        f'Network:\n'
-        f'\t{net.n_channels} input channels\n'
-        f'\t{net.n_classes} output channels (classes)\n')
+    logging.info(f'Network:\n'
+                 f'\t{net.n_channels} input channels\n'
+                 f'\t{net.n_classes} output channels (classes)\n')
     # f'\t{"Bilinear" if net.bilinear else "Transposed conv"} upscaling'
 
     if args.load:
