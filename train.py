@@ -19,6 +19,8 @@ import numpy as np
 from torchvision.transforms import transforms
 from utils.data_augmentation import tensor_img_mask_aug
 from deeplabv3P import DeepLab
+from hrnet import seg_hrnet
+from hrnet import config as hrnet_config
 
 # path
 # dir_img = Path('./data/imgs/')
@@ -82,8 +84,8 @@ is_aug = False
 is_sw = True
 
 # multi-GPU
-is_gpus = False
-# is_gpus = True
+# is_gpus = False
+is_gpus = True
 
 
 def train_net(net,
@@ -463,8 +465,8 @@ def train_net(net,
             Path(dir_checkpoint).mkdir(parents=True, exist_ok=True)
             model_name = str(
                 dir_checkpoint /
-                'checkpoint_epoch{}_jd_clean_resize_BCE_hrnet_sw1024_iou{}.pth'.
-                format(epoch, miou_epoch))
+                'checkpoint_epoch{}_jd_clean_resize_BCE_hrnet_sw1024_iou{}.pth'
+                .format(epoch, miou_epoch))
             if is_gpus:
                 torch.save(net.module.state_dict(), model_name)
             else:
@@ -477,8 +479,8 @@ def train_net(net,
         Path(dir_checkpoint).mkdir(parents=True, exist_ok=True)
         final_model_name = str(
             dir_checkpoint /
-            'checkpoint_epoch{}_jd_clean_resize_BCE_hrnet_sw1024_iou{}.pth'.format(
-                epochs, miou_epoch))
+            'checkpoint_epoch{}_jd_clean_resize_BCE_hrnet_sw1024_iou{}.pth'.
+            format(epochs, miou_epoch))
         if is_gpus:
             torch.save(net.module.state_dict(), final_model_name)
         else:
@@ -501,7 +503,7 @@ def get_args():
                         dest='batch_size',
                         metavar='B',
                         type=int,
-                        default=16,
+                        default=12,
                         help='Batch size')
     parser.add_argument('--learning-rate',
                         '-l',
@@ -515,12 +517,11 @@ def get_args():
                         type=str,
                         default=False,
                         help='Load model from a .pth file')
-    parser.add_argument(
-        '--scale',
-        '-s',
-        type=float,
-        default=1, 
-        help='Downscaling factor of the images')
+    parser.add_argument('--scale',
+                        '-s',
+                        type=float,
+                        default=1,
+                        help='Downscaling factor of the images')
     parser.add_argument(
         '--validation',
         '-v',
@@ -547,7 +548,7 @@ if __name__ == '__main__':
 
     logging.basicConfig(level=logging.INFO,
                         format='%(levelname)s: %(message)s')
-    cuda_name = 'cuda:1' # 'cuda' 
+    cuda_name = 'cuda'  # 'cuda:1'
     device = torch.device(cuda_name if torch.cuda.is_available() else 'cpu')
     logging.info(f'Main device {device}')
 
@@ -558,7 +559,8 @@ if __name__ == '__main__':
     # net = UNet(n_channels=3, n_classes=2, bilinear=True)
     # net = DeepLab(backbone='resnet', output_stride=16, num_classes=2)
     # net = UnetResnet50(n_channels=3, n_classes=2)
-    net =hrnet48(n_channels=3, n_classes=2)
+    # net =hrnet48(n_channels=3, n_classes=2)
+    net = seg_hrnet.get_seg_model(hrnet_config)
     # net =Unet_p1(n_channels=3, n_classes=2)
     # net = hrnet48_p1(n_channels=3, n_classes=2)
     # net = UNet_fp4(n_channels=3, n_classes=2)
@@ -575,7 +577,9 @@ if __name__ == '__main__':
 
     if is_gpus:
         net = torch.nn.DataParallel(net, device_ids=[0, 1])
+
     net.to(device=device)
+
     try:
         train_net(net=net,
                   epochs=args.epochs,

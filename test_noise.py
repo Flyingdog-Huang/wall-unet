@@ -3,6 +3,10 @@ import torch
 from utils.data_loading import make_grid
 import cv2
 
+p, g =
+p[p > 0] = 1
+g[g > 0] = 1
+
 # img=torch.rand(1,3,2,3)
 # print('img.shape',img.shape)
 # print('img',img)
@@ -62,5 +66,5 @@ import cv2
 #     mask[y1:y2,x1:x2]+=1
 # print('mask',mask)
 
-l=[1,2,3,4,5]
-print(l[:2])
+# l=[1,2,3,4,5]
+# print(l[:2])

@@ -421,16 +421,16 @@ class HighResolutionNet(nn.Module):
     def forward(self, x):
         x_original_size = x.size()
         x = self.conv1(x)
-        print(x.size())
+        # print(x.size())
         x = self.bn1(x)
         x = self.relu(x)
         x = self.conv2(x)
-        print(x.size())
+        # print(x.size())
         x = self.bn2(x)
         x = self.relu(x)
         x = self.layer1(x)
 
-        print(x.size())
+        # print(x.size())
 
         x_list = []
         for i in range(self.stage2_cfg['NUM_BRANCHES']):
@@ -472,11 +472,14 @@ class HighResolutionNet(nn.Module):
                            mode='bilinear', align_corners=ALIGN_CORNERS)
 
         x = torch.cat([x[0], x1, x2, x3], 1)
-        
-        print(x.size())
+
+        # x = F.interpolate(x, size=x_original_size[
+        #     2:], mode='bilinear', align_corners=ALIGN_CORNERS)
+
+        # print(x.size())
 
         x = self.last_layer(x)
-        
+
         x = F.interpolate(x, size=x_original_size[
             2:], mode='bilinear', align_corners=ALIGN_CORNERS)
 
@@ -505,6 +508,6 @@ class HighResolutionNet(nn.Module):
 
 def get_seg_model(cfg, **kwargs):
     model = HighResolutionNet(cfg, **kwargs)
-    model.init_weights(cfg.MODEL.PRETRAINED)
+    # model.init_weights(cfg.MODEL.PRETRAINED)
 
     return model
