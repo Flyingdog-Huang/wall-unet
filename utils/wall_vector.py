@@ -1,3 +1,4 @@
+from copy import copy, deepcopy
 import cv2
 import numpy as np
 import math
@@ -500,6 +501,9 @@ def wall_vector(img_o, img_pre):
     img_pre = cv2.resize(img_pre, resize_shape,
                          interpolation=cv2.INTER_NEAREST)
 
+    img_all = deepcopy(img_o)
+    img_wall = deepcopy(img_o)
+
     # get resize scale
     # resize_scale = 1
     resize_scale = max(resize_shape) // 500
@@ -558,17 +562,23 @@ def wall_vector(img_o, img_pre):
 
     # filter wall lines
     for line in lines_fastLSD:
-        x1, y1, x2, y2 = line[0]
+        x1_, y1_, x2_, y2_ = line[0]
 
         # 线段坐标等比例放缩
-        x1 = x1 // resize_scale
-        y1 = y1 // resize_scale
-        x2 = x2 // resize_scale
-        y2 = y2 // resize_scale
+        x1 = x1_ // resize_scale
+        y1 = y1_ // resize_scale
+        x2 = x2_ // resize_scale
+        y2 = y2_ // resize_scale
 
         # 过滤过短线段
         if (x1 - x2) ** 2 <= a1 ** 2 and (y1 - y2) ** 2 <= a1 ** 2:
             continue
+        else:
+            # draw all lines on img_o
+            cv2.line(img_all, (int(
+                x1_), int(y1_)), (int(
+                    x2_), int(y2_)), (0, 0, 255), 2
+            )
 
         x0, x3, x4, x5, = x1, x1, x1, x1
         y0, y3, y4, y5, = y1, y1, y1, y1
@@ -689,6 +699,11 @@ def wall_vector(img_o, img_pre):
             # add wall lines
             wall_line = [x1, y1, x2, y2]
             wall_lines.append(wall_line)
+            # draw wall lines on img_o
+            cv2.line(img_wall, (int(
+                x1_), int(y1_)), (int(
+                    x2_), int(y2_)), (0, 0, 255), 2
+            )
             # get direction
             direc_line = [x1, y1, x5, y5] if mask1_p > mask2_p else [
                 x1, y1, x3, y3]
@@ -1386,7 +1401,7 @@ def wall_vector(img_o, img_pre):
 
     # wall_vectors = []
     img_vector = np.zeros((img_shape[0], img_shape[1]), np.uint8)
-    # img_feature = np.zeros((img_shape[0], img_shape[1], 3), np.uint8)
+    img_feature = np.zeros((img_shape[0], img_shape[1], 3), np.uint8)
 
     k_rgs = [0, max_k, 1, -1, 0.4142, 2.4142, -0.4142, -2.4142]
     rg_flag_map = np.zeros((y, x), np.uint8)
@@ -1408,13 +1423,13 @@ def wall_vector(img_o, img_pre):
         rg_map = cv2.resize(rg_map, resize_shape,
                             interpolation=cv2.INTER_NEAREST)
 
-        # # draw faeture
-        # if k_rg == 0:
-        #     img_feature[:, :, 0] += rg_map
-        # elif k_rg == max_k:
-        #     img_feature[:, :, 1] += rg_map
-        # else:
-        #     img_feature[:, :, 2] += rg_map
+        # draw faeture
+        if k_rg == 0:
+            img_feature[:, :, 0] += rg_map # 横向为蓝色
+        elif k_rg == max_k:
+            img_feature[:, :, 1] += rg_map # 竖向为绿色
+        else:
+            img_feature[:, :, 2] += rg_map # 斜向为红色
 
         # 拟合轮廓成矩形
         contours, _ = cv2.findContours(
@@ -1461,5 +1476,5 @@ def wall_vector(img_o, img_pre):
                 wall_vector['isStructural'] = True
                 wall_vectors.append(wall_vector)
                 """
-    return img_vector  # wall_lines, img_pre, img_feature,   img_wallLines,K_map
+    return img_all, img_wall, img_feature, img_vector  # wall_lines, img_pre, img_feature,   img_wallLines,K_map
     # return wall_vectors

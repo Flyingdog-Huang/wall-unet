@@ -28,6 +28,8 @@ class SwinUnet(nn.Module):
         self.num_classes = num_classes
         self.zero_head = zero_head
         self.config = config
+        self.n_channels=3
+        self.n_classes=2
 
         self.swin_unet = SwinTransformerSys(img_size=config.DATA.IMG_SIZE,
                                 patch_size=config.MODEL.SWIN.PATCH_SIZE,

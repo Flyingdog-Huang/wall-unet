@@ -13,7 +13,7 @@ from tqdm import tqdm
 from utils.data_loading import BasicDataset, CarvanaDataset, PimgDataset, GridDataset
 from utils.dice_score import dice_loss
 from evaluate import evaluate
-from unet import UNet, UnetResnet50, hrnet48, Unet_p1, hrnet48_p1, UNet_fp16, UNet_fp4
+from unet import UNet, UNet_Down, UnetResnet50, hrnet48, Unet_p1, hrnet48_p1, UNet_fp16, UNet_fp4
 from utils.miou import IOU, MIOU
 import numpy as np
 from torchvision.transforms import transforms
@@ -21,6 +21,8 @@ from utils.data_augmentation import tensor_img_mask_aug
 from deeplabv3P import DeepLab
 from hrnet import seg_hrnet
 from hrnet import config as hrnet_config
+from swin_unet.config import _C as swin_tiny_unet
+from swin_unet.swinunet import SwinUnet
 
 # path
 # dir_img = Path('./data/imgs/')
@@ -37,8 +39,11 @@ from hrnet import config as hrnet_config
 # dir_pimg = Path('../../../../data/floorplan/pimg/JPEG-DOP1/')
 # dir_mask = Path('../../../../data/floorplan/pimg/masks/')
 
+# CVC dataset
 # dir_img = Path('../../../../data/floorplan/CVC-FP/')
 # dir_mask = Path('../../../../data/floorplan/CVC-FP/masks/')
+dir_img = Path('../../../../data/floorplan/cvc_clean/img/')
+dir_mask = Path('../../../../data/floorplan/cvc_clean/mask/')
 
 # r3dcvc data set
 # dir_img = Path('../../../../data/floorplan/r3d_cvc/imgs/')
@@ -53,8 +58,8 @@ from hrnet import config as hrnet_config
 # dir_mask = Path('../../../../data/floorplan/private/train/mask2/')
 # dir_img = Path('../../../../data/floorplan/JD_clean/img/')
 # dir_mask = Path('../../../../data/floorplan/JD_clean/mask/')
-dir_img = Path('../../../../data/floorplan/after_resize/img/')
-dir_mask = Path('../../../../data/floorplan/after_resize/mask/')
+# dir_img = Path('../../../../data/floorplan/after_resize/img/')
+# dir_mask = Path('../../../../data/floorplan/after_resize/mask/')
 
 # # PC test
 # dir_img = Path('../../../FloorPlan/2-Dataset/JD_clean_size/after_resize/img/')
@@ -80,12 +85,15 @@ is_aug = False
 # is_aug = True
 
 # shift window
-# is_sw = False
-is_sw = True
+is_sw = False
+# is_sw = True
 
 # multi-GPU
 # is_gpus = False
 is_gpus = True
+
+# show the max MIOU
+Max_MIOU = 0
 
 
 def train_net(net,
@@ -95,7 +103,7 @@ def train_net(net,
               learning_rate: float = 0.001,
               val_percent: float = 0.1,
               save_checkpoint: bool = True,
-              img_scale: float = 0.5,
+              img_scale: float = 1,
               amp: bool = False):
     # 1. Create dataset
     # print()
@@ -119,19 +127,25 @@ def train_net(net,
     # print('Split into train / validation partitions')
     n_val = int(len(dataset) * val_percent)
     n_train = len(dataset) - n_val
+    # print('n_train',n_train)
+    # print('n_val',n_val)
     train_set, val_set = random_split(
         dataset, [n_train, n_val], generator=torch.Generator().manual_seed(0))
+    # print('len(train_set)',len(train_set))
+    # print('len(val_set)',len(val_set))
 
     # 3. Create data loaders
     # print()
     # print('-------------------------------------------------------')
     # print('Create data loaders')
-    loader_args = dict(batch_size=batch_size, num_workers=2, pin_memory=True)
+    loader_args = dict(batch_size=batch_size, num_workers=8, pin_memory=True)
     train_loader = DataLoader(train_set, shuffle=True, **loader_args)
     val_loader = DataLoader(val_set,
                             shuffle=False,
                             drop_last=True,
                             **loader_args)
+    # print('len(train_loader)',len(train_loader))
+    # print('len(val_loader)',len(val_loader))
 
     # (Initialize logging)
     experiment = wandb.init(project='U-Net', resume='allow', anonymous='must')
@@ -398,8 +412,10 @@ def train_net(net,
                 pbar.set_postfix(**{'loss (batch)': loss.item()})
 
                 # Evaluation round
-                super_para = 10
-                if global_step % (n_train // (super_para * batch_size)) == 0:
+                super_para = 4
+                cirle_step = n_train // (super_para * batch_size)
+                if cirle_step == 0: cirle_step = 1
+                if global_step % cirle_step == 0:
                     # print()
                     # print('-------------------------------------------------------')
                     # print('Evaluation round ')
@@ -419,6 +435,9 @@ def train_net(net,
 
                     val_score = dice_onehot_nobg
                     miou_epoch = miou_eva
+                    global Max_MIOU
+                    Max_MIOU = max(Max_MIOU, miou_epoch)
+                    print('now Max MIOU : ', Max_MIOU)
 
                     # LR adjust
                     # scheduler.step(val_score)
@@ -465,8 +484,8 @@ def train_net(net,
             Path(dir_checkpoint).mkdir(parents=True, exist_ok=True)
             model_name = str(
                 dir_checkpoint /
-                'checkpoint_epoch{}_jd_clean_resize_BCE_hrnet_sw1024_iou{}.pth'
-                .format(epoch, miou_epoch))
+                'checkpoint_epoch{}_cvc_resize_deeplab_iou{}.pth'.format(
+                    epoch, miou_epoch))
             if is_gpus:
                 torch.save(net.module.state_dict(), model_name)
             else:
@@ -479,8 +498,8 @@ def train_net(net,
         Path(dir_checkpoint).mkdir(parents=True, exist_ok=True)
         final_model_name = str(
             dir_checkpoint /
-            'checkpoint_epoch{}_jd_clean_resize_BCE_hrnet_sw1024_iou{}.pth'.
-            format(epochs, miou_epoch))
+            'checkpoint_epoch{}_cvc_resize_deeplab_iou{}.pth'.format(
+                epochs, miou_epoch))
         if is_gpus:
             torch.save(net.module.state_dict(), final_model_name)
         else:
@@ -496,14 +515,14 @@ def get_args():
                         '-e',
                         metavar='E',
                         type=int,
-                        default=100,
+                        default=300,
                         help='Number of epochs')
     parser.add_argument('--batch-size',
                         '-b',
                         dest='batch_size',
                         metavar='B',
                         type=int,
-                        default=12,
+                        default=2,
                         help='Batch size')
     parser.add_argument('--learning-rate',
                         '-l',
@@ -556,15 +575,18 @@ if __name__ == '__main__':
     # n_channels=3 for RGB images
     # n_classes is the number of probabilities you want to get per pixel
 
+    # choose model
     # net = UNet(n_channels=3, n_classes=2, bilinear=True)
-    # net = DeepLab(backbone='resnet', output_stride=16, num_classes=2)
+    # net = UNet_Down(3, 2)
+    net = DeepLab(backbone='resnet', output_stride=16, num_classes=2)
     # net = UnetResnet50(n_channels=3, n_classes=2)
-    # net =hrnet48(n_channels=3, n_classes=2)
-    net = seg_hrnet.get_seg_model(hrnet_config)
-    # net =Unet_p1(n_channels=3, n_classes=2)
+    # net = hrnet48(n_channels=3, n_classes=2)
+    # net = seg_hrnet.get_seg_model(hrnet_config)
+    # net = Unet_p1(n_channels=3, n_classes=2)
     # net = hrnet48_p1(n_channels=3, n_classes=2)
     # net = UNet_fp4(n_channels=3, n_classes=2)
     # net = UNet_fp16(n_channels=3, n_classes=3)
+    # net = SwinUnet(swin_tiny_unet)
 
     logging.info(f'Network:\n'
                  f'\t{net.n_channels} input channels\n'

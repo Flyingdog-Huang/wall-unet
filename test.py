@@ -29,9 +29,16 @@ from torchvision import transforms as T
 # dir_miou = '../../data/JD_clean/'
 
 # test bug
-dir_img = '../test/img/'
-dir_pre = '../test/predict/'
-dir_vec = '../test/vector/'
+# dir_img = '../test/img/'
+# dir_pre = '../test/predict/'
+# dir_vec = '../test/vector/'
+dir_bug = '20220518'
+dir_img = '../../data/bug/'+dir_bug+'/img/'
+dir_pre = '../../data/bug/'+dir_bug+'/predict/'
+dir_alllines = '../../data/bug/'+dir_bug+'/all_lines/'
+dir_walllines = '../../data/bug/'+dir_bug+'/wall_lines/'
+dir_Kfeatmap = '../../data/bug/'+dir_bug+'/K_feature_map/'
+dir_vec = '../../data/bug/'+dir_bug+'/vector/'
 
 # pth path
 # dir_pth = '../checkpoints/checkpoint_epoch41_priclean_swf_BCE_unet_iou91.pth'
@@ -227,7 +234,8 @@ def test(device,
     return miou
 
 
-def test_bug(net, img, device):
+def test_bug(net, img, device, is_vector):
+    img_list = []
     # predict
     img_grids = make_grid(img.shape[:2], window=1024)
     mask_pred = torch.zeros(
@@ -257,11 +265,17 @@ def test_bug(net, img, device):
     result_img = np.uint8(full_mask[1]*255)
     img_pre = np.transpose(
         np.array([result_img, result_img, result_img]), (1, 2, 0))
+    img_list.append(img_pre)
 
-    #  verctorizaton
-    img_vec = wall_vector(img, img_pre)
+    if is_vector:
+        #  verctorizaton
+        img_all, img_wall, img_kmap, img_vec = wall_vector(img, img_pre)
+        img_list.append(img_all)
+        img_list.append(img_wall)
+        img_list.append(img_kmap)
+        img_list.append(img_vec)
 
-    return img_pre, img_vec
+    return img_list
 
 
 if __name__ == '__main__':
@@ -273,12 +287,14 @@ if __name__ == '__main__':
 
     # initlization net
     net = UNet(n_channels=3, n_classes=2)
+
     # args = get_args()
     cuda_name = 'cuda'  # 'cuda:1'
     device = torch.device(cuda_name if torch.cuda.is_available() else 'cpu')
     # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     # device = torch.device('cpu')
     # print('device',device)
+
     # logging.info(f'Loading model {args.model}')
     logging.info(f'Loading model {dir_pth}')
     logging.info(f'Using device {device}')
@@ -304,12 +320,23 @@ if __name__ == '__main__':
         # print('img',img)
         # print('img.shape',img.shape)
         predict_name = str(dir_pre)+name+'_pre.png'
-        vector_name = str(dir_vec)+name+'_vec.png'
-        img_pre, img_vec = test_bug(net, img, device)
+        img_list = test_bug(net, img, device, is_vector)
+        img_pre = img_list[0]
         cv2.imwrite(predict_name, img_pre)
-        cv2.imwrite(vector_name, img_vec)
+
+        if is_vector:
+            alllines_name = str(dir_alllines)+name+'_all.png'
+            walllines_name = str(dir_walllines)+name+'_wall.png'
+            Kfeatmap_name = str(dir_Kfeatmap)+name+'_Kmap.png'
+            vector_name = str(dir_vec)+name+'_vec.png'
+            img_all, img_wall, img_kmap, img_vec = img_list[1:]
+            cv2.imwrite(alllines_name, img_all)
+            cv2.imwrite(walllines_name, img_wall)
+            cv2.imwrite(Kfeatmap_name, img_kmap)
+            cv2.imwrite(vector_name, img_vec)
+
     print('finish test bug')
-    
+
     # test dataset
     # miou_pre = 0
     # miou_vec = 0

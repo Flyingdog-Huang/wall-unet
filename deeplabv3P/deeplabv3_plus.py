@@ -6,10 +6,13 @@ from .aspp import build_aspp
 from .decoder import build_decoder
 from .build_bk import build_backbone
 
-
 class DeepLab(nn.Module):
-    def __init__(self, backbone='resnet', output_stride=16, num_classes=4,
-                 sync_bn=False, freeze_bn=False):
+
+    def __init__(self,
+                 backbone='resnet',
+                 output_stride=16,
+                 num_classes=2,
+                 freeze_bn=False):
         super(DeepLab, self).__init__()
         if backbone == 'drn':
             output_stride = 8
@@ -31,18 +34,21 @@ class DeepLab(nn.Module):
         x, low_level_feat = self.backbone(input)
         x = self.aspp(x)
         x = self.decoder(x, low_level_feat)
-        x = F.interpolate(x, size=input.size()[
-                          2:], mode='bilinear', align_corners=True)
+        x = F.interpolate(x,
+                          size=input.size()[2:],
+                          mode='bilinear',
+                          align_corners=True)
 
         return x
-    '''
+
     def freeze_bn(self):
         for m in self.modules():
-            if isinstance(m, SynchronizedBatchNorm2d):
+            if isinstance(m, nn.BatchNorm2d):
                 m.eval()
-            elif isinstance(m, nn.BatchNorm2d):
-                m.eval()
-    
+            # elif isinstance(m, SynchronizedBatchNorm2d):
+            #     m.eval()
+
+    '''
     def get_1x_lr_params(self):
         modules = [self.backbone]
         for i in range(len(modules)):

@@ -141,5 +141,7 @@ def evaluate(net, dataloader, device, is_gpus=False):
 
     net.train()
     class_iou_eva = np.array(class_iou_eva)
+    # print('num_val_batches',num_val_batches)
+    # print('num_pixels',num_pixels)
     return class_iou_eva / num_val_batches, miou_eva / num_val_batches, dice_softmax_nobg / num_val_batches, dice_softmax_bg / num_val_batches, dice_onehot_nobg / num_val_batches, dice_onehot_bg / num_val_batches, num_correct / num_pixels
     return dice_score / num_val_batches, dice_score_softmax / num_val_batches, num_correct / num_pixels
