@@ -18,7 +18,8 @@ class DoubleConv(nn.Module):
                       kernel_size=3,
                     #   stride=2,
                       padding=1,
-                      bias=False),  #bias=False
+                      bias=False
+                      ),  #bias=False
             nn.BatchNorm2d(mid_channels),
             # nn.PReLU(inplace=True),
             nn.ReLU(inplace=True),
@@ -27,7 +28,8 @@ class DoubleConv(nn.Module):
                       kernel_size=3,
                     #   stride=2,
                       padding=1,
-                      bias=False),
+                      bias=False
+                      ),
             nn.BatchNorm2d(out_channels),
             nn.ReLU(inplace=True))
 

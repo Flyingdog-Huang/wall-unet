@@ -1,4 +1,5 @@
 from copy import copy, deepcopy
+import random
 import cv2
 import numpy as np
 import math
@@ -91,21 +92,33 @@ def process_cnt(cnt, x, y):
     return cnt_
 
 
-def campIOU(cnt):
+def campIOU(cnt, pre):
     area_cnt = cv2.contourArea(cnt)
     rect = cv2.minAreaRect(cnt)
     points = cv2.boxPoints(rect)
     points = np.int0(points)[:, np.newaxis, :]
     # print('cnt',cnt)
     # print('points',points)
+    # print('points shape',points.shape)
     area_rect = cv2.contourArea(points)
+    rect_map = np.zeros(pre.shape, np.uint16)
+    # print('rect_map shape',rect_map.shape)
+    # print('pre shape',pre.shape)
+    cv2.drawContours(rect_map, points[np.newaxis, :, :, :], 0, (1), -1)
     # print('cnt shape',cnt.shape)
     # print('points shape',points.shape)
     # print('cnt type',type(cnt))
     # print('points type',type(points))
     # print('area_cnt',area_cnt)
     # print('area_rect',area_rect)
-    return 1 if area_rect == 0 else area_cnt / area_rect
+    x, y, w, h = cv2.boundingRect(cnt)
+    x_ = x+w
+    y_ = y+h
+    iou_rect_map = rect_map[y:y_, x:x_]
+    iou_pre = pre[y:y_, x:x_]
+    iou_rect = area_cnt / (area_rect+0.00000001)
+    iou = np.sum(iou_rect_map*iou_pre) / (area_rect + 0.00000001)
+    return 1 if area_rect == 0 else iou  # max(iou_rect, iou)
 
 
 def find_k_line(cnt, k_line):
@@ -258,11 +271,17 @@ def split_cnt(cnt, a, b, c, cnt_flag):
                 return cnts
 
 
-def findMaxMIOU(cnt, k_line, thr_iou=0.9, max_times=20):
-    now_iou = campIOU(cnt)
+def findMaxMIOU(cnt, k_line, pre, thr_iou=0.8, max_times=10):
+    origi_iou = campIOU(cnt, pre)
+    now_iou = origi_iou
     # print('before_iou',now_iou)
     if now_iou >= thr_iou:
         return [cnt]
+    
+    cut_k = 0-1/k_line if k_line != 0 else max_k # 垂直切割
+    if k_line == max_k:
+        cut_k = 0
+    # cut_k = k_line # 平行切割
 
     # create cnt flag
     stand_rect = cv2.boundingRect(cnt)
@@ -282,14 +301,14 @@ def findMaxMIOU(cnt, k_line, thr_iou=0.9, max_times=20):
             break
         seg_times += 1
         # print('min_cnt',min_cnt)
-        a, b, c = find_k_line(min_cnt, k_line)
+        a, b, c = find_k_line(min_cnt, cut_k)
         # print('a,b,c',a,b,c)
         cnt_location = split_cnt(min_cnt, a, b, c, cnt_flag)
 
         # update min_cnt
         min_iou = 1
         for cnt_j in cnt_location:
-            iou_j = campIOU(cnt_j)
+            iou_j = campIOU(cnt_j, pre)
             if iou_j < min_iou:
                 min_cnt = cnt_j
                 min_iou = iou_j
@@ -301,7 +320,7 @@ def findMaxMIOU(cnt, k_line, thr_iou=0.9, max_times=20):
         # print('len(cnts_compare)',len(cnts_compare))
         miou = 0
         for cnt_i in cnts_compare:
-            iou_i = campIOU(cnt_i)
+            iou_i = campIOU(cnt_i, pre)
             # print('iou',iou_i)
             miou += iou_i
         miou = miou / len(cnts_compare)
@@ -314,8 +333,22 @@ def findMaxMIOU(cnt, k_line, thr_iou=0.9, max_times=20):
 
     # print('fa,fb,fc',[fa,fb,fc])
     # print('now_iou',now_iou)
-    final_cnts = [cnt] if fa == None else split_cnt(cnt, fa, fb, fc, cnt_flag)
-    return final_cnts  # , min_cnts, now_iou,cnt_flag
+    final_cnts = [cnt] 
+    if fa == None :
+        return final_cnts
+    else :
+        cnts_compare =split_cnt(cnt, fa, fb, fc, cnt_flag)
+        miou = 0
+        for cnt_i in cnts_compare:
+            iou_i = campIOU(cnt_i, pre)
+            # print('iou',iou_i)
+            miou += iou_i
+        miou = miou / len(cnts_compare)
+        if miou>origi_iou+0.18:
+            return cnts_compare
+        else :
+            return final_cnts
+      # , min_cnts, now_iou,cnt_flag
 
 
 def is_K_same(k1, k2, same_a=10):
@@ -493,27 +526,49 @@ def find_wall_lines(
 def wall_vector(img_o, img_pre):
     # get original shape
     # print("process img data")
+    img_o = np.array(img_o)
+    img_pre = np.array(img_pre)
+    origi_pre = img_pre[:, :, 0]//255
+    # print('origi_pre.shape',origi_pre.shape)
     img_shape = img_o.shape[:2]
+    # print('id(img_pre)',id(img_pre))
 
-    # resize 0.8
-    resize_shape = [int(img_shape[1] * 0.8), int(img_shape[0] * 0.8)]
-    img_o = cv2.resize(img_o, resize_shape, interpolation=cv2.INTER_NEAREST)
-    img_pre = cv2.resize(img_pre, resize_shape,
-                         interpolation=cv2.INTER_NEAREST)
+    # resize
+    resize_shape = [int(img_shape[1]), int(img_shape[0])]
+    # scale_rate = 1
+    # resize_shape = [int(img_shape[1] * scale_rate), int(img_shape[0] *scale_rate)]
+    # img_o = cv2.resize(img_o, resize_shape, interpolation=cv2.INTER_NEAREST)
+    # img_pre = cv2.resize(img_pre, resize_shape,
+    #                      interpolation=cv2.INTER_NEAREST)
+    # print('id(img_pre)',id(img_pre))
 
-    img_all = deepcopy(img_o)
-    img_wall = deepcopy(img_o)
+    # img_all = deepcopy(img_o)
+    # img_wall = deepcopy(img_pre)
+    img_all = copy(img_o)
+    img_wall = copy(img_pre)
+    img_all = np.array(img_all)
+    img_wall = np.array(img_wall)
+    img_all = img_all.copy()
+    # print('id(img_wall)',id(img_wall))
+    img_wall = img_wall.copy()
+    # print('id(img_wall)',id(img_wall))
+    # print('img_all.shape',img_all.shape)
+    # print('img_all type',type(img_all))
+    # print('img_wall.shape',img_wall.shape)
+    # print('img_wall type',type(img_wall))
 
     # get resize scale
     # resize_scale = 1
     resize_scale = max(resize_shape) // 500
     if resize_scale < 1:
         resize_scale = 1
+    # print('resize_scale',resize_scale)
 
     # resize img_pre
     new_resize_shape = [
         resize_shape_size // resize_scale for resize_shape_size in resize_shape
     ]
+    # print('new_resize_shape',new_resize_shape)
     img_pre = cv2.resize(img_pre, new_resize_shape,
                          interpolation=cv2.INTER_NEAREST)
     # img_wallLines = cv2.resize(img_o, new_resize_shape, interpolation=cv2.INTER_NEAREST)
@@ -521,8 +576,9 @@ def wall_vector(img_o, img_pre):
     # process img
     img_gray = cv2.cvtColor(img_o, cv2.COLOR_BGR2GRAY)
 
-    # Fast LSD
-    lsd_dec = cv2.ximgproc.createFastLineDetector()
+    # line detect
+    # lsd_dec = cv2.ximgproc.createFastLineDetector() # FLD
+    lsd_dec = cv2.createLineSegmentDetector(0)  # LSD
     lines_fastLSD = lsd_dec.detect(img_gray)
 
     # filter lines
@@ -542,7 +598,7 @@ def wall_vector(img_o, img_pre):
 
     # process condition
     a1 = 2  # fusion dis
-    a2 = 8  # detection dis
+    a2 = 5  # detection dis
 
     # init detection position
     dx = 0
@@ -561,8 +617,12 @@ def wall_vector(img_o, img_pre):
     no_line = 0
 
     # filter wall lines
-    for line in lines_fastLSD:
+    # print(" **************** filter wall lines **************** ")
+    # print('number of all lines: ',len(lines_fastLSD[0]))
+    # for line in lines_fastLSD: # FLD
+    for line in lines_fastLSD[0]:  # LSD
         x1_, y1_, x2_, y2_ = line[0]
+        # print(line[0])
 
         # 线段坐标等比例放缩
         x1 = x1_ // resize_scale
@@ -627,6 +687,7 @@ def wall_vector(img_o, img_pre):
 
         # create mask
         mask1 = np.zeros((y, x), np.uint8)
+        # print('rec1[np.newaxis, :, :, :] shape',rec1[np.newaxis, :, :, :].shape)
         cv2.drawContours(mask1, rec1[np.newaxis, :, :, :], 0, (255), -1)
         mask2 = np.zeros((y, x), np.uint8)
         cv2.drawContours(mask2, rec2[np.newaxis, :, :, :], 0, (255), -1)
@@ -700,14 +761,18 @@ def wall_vector(img_o, img_pre):
             wall_line = [x1, y1, x2, y2]
             wall_lines.append(wall_line)
             # draw wall lines on img_o
-            cv2.line(img_wall, (int(
-                x1_), int(y1_)), (int(
-                    x2_), int(y2_)), (0, 0, 255), 2
-            )
+            # print(int(x1_), int(y1_), int(x2_), int(y2_))
+            # print('img_wall type',type(img_wall))
+            # print('img_wall.shape',img_wall.shape)
+            # print('img_pre.shape',img_pre.shape)
+            cv2.line(img_wall, (int(x1_), int(y1_)),
+                     (int(x2_), int(y2_)), (0, 0, 255), 2)
             # get direction
             direc_line = [x1, y1, x5, y5] if mask1_p > mask2_p else [
                 x1, y1, x3, y3]
             direc_lines.append(direc_line)
+
+    # print('number of wall lines: ',len(wall_lines))
 
     # # test wall lines
     # return wall_lines, img_pre
@@ -823,15 +888,15 @@ def wall_vector(img_o, img_pre):
 
     # classify each prediction pix
     # print("classify each prediction pix")
-    r_max = 20  # 最大探测半径
-    for yi in range(y):
-        for xi in range(x):
-            # 若此点为prediction pix, 且不为wall line 轨迹
-            if img_bool[yi, xi] == 1 and line_map[yi, xi] == 0:
-                point_detect(xi, yi, r_max)
+    # r_max = 20  # 最大探测半径
+    # for yi in range(y):
+    #     for xi in range(x):
+    #         # 若此点为prediction pix, 且不为wall line 轨迹
+    #         if img_bool[yi, xi] == 1 and line_map[yi, xi] == 0:
+    #             point_detect(xi, yi, r_max)
 
-    #### k feature map充填阶段 ####
-    # print("fill up k feature map")
+    ############### k feature map充填阶段 #########################################################
+    # print(" **************** classify prediction pix by wall lines **************** ")
     # wall line 方向的探测区域长度
     l_d = 8
 
@@ -840,10 +905,12 @@ def wall_vector(img_o, img_pre):
 
     # create k map
     for i in range(len(wall_lines)):
+        # print(i+1,' - ', len(wall_lines),' - ',wall_lines[i])
         new_no = i + 1  # 此时的wall line编号
         x1, y1, x2, y2 = wall_lines[i]  # 提取wall line坐标
         k_line = k_lines[i]  # 此条wall line的斜率K
         x1, y1, x_d, y_d = direc_lines[i]  # 方向线坐标，以point1为起点
+        # print('方向线坐标: ',direc_lines[i])
         vector_wall_i = [x_d - x1, y_d - y1]  # wall line 的方向向量
 
         # draw line flag on line map
@@ -956,6 +1023,8 @@ def wall_vector(img_o, img_pre):
                                 # 探测点坐标
                                 x_detect = x_line + k_direc * dis_pix_detect
                                 y_detect = y_line
+                                x_detect = x_detect if x_detect < x else x-1
+                                y_detect = y_detect if y_detect < y else y-1
 
                                 # 符合充填条件-存在wall像素+没有被成对充填
                                 if (
@@ -1088,8 +1157,9 @@ def wall_vector(img_o, img_pre):
 
                             while num_contect_black_pix < 3 and dis_pix_detect <= l_d:
                                 # 探测点坐标
-                                x_detect = x_line
+                                x_detect = x_line 
                                 y_detect = y_line + k_direc * dis_pix_detect
+                                if x_detect >= x or y_detect >= y :break
 
                                 # 符合充填条件-存在wall像素+没有被成对充填
                                 if (
@@ -1121,10 +1191,27 @@ def wall_vector(img_o, img_pre):
         # 斜边扩展
         else:
             # 获取X,Y的方向
-            xk_direc = 1 if x_d > x1 else -1
+            xk_direc =None
+            if x_d > x1:
+                xk_direc = 1 
+            if x_d < x1:
+                xk_direc = -1
+            
             dk = -1 / k_line  # 探测线的斜率
+            if x_d == x1:
+                if dk >0 :
+                    if y_d>y1:xk_direc = 1 
+                    if y_d<y1:xk_direc = -1 
+                if dk <0 :
+                    if y_d>y1:xk_direc = -1 
+                    if y_d<y1:xk_direc = 1 
+            
+            # print('x轴探测方向：',xk_direc)
+            # print('探测线的斜率',dk)
             dx = (l_d ** 2 / (1 + dk ** 2)) ** 0.5  # 探测线长度的X变量 - 始终大于等于0
             dy = dk * dx if dk > 0 else -dk * dx  # 探测线长度的Y变量 - 始终大于等于0
+            # print('探测线长度的X变量',dx )
+            # print('探测线长度的Y变量',dy)
 
             for x_line in range(x_min, x_max + 1):
                 if x_line not in range(x):
@@ -1132,8 +1219,9 @@ def wall_vector(img_o, img_pre):
                 for y_line in range(y_min, y_max + 1):
                     if y_line not in range(y):
                         continue
-                    # 若ROI区域有wall line轨迹
+                    # 若ROI区域有wall line轨迹, 则以此点为生长点， 进行成对wall lines探测和pre-pix充填
                     if line_flg[y_line, x_line] == 1:
+                        # print('起始探测点：',(x_line,y_line))
                         is_re_wall_line = False  # 探测结果是否为同向相似墙体线段
                         is_coupled_wall_line = False  # 探测结果是否为成对（斜率相似+墙体方向相反）墙体线段
                         position_coupled_wall_line = []  # 记录成对wall line的点位
@@ -1145,13 +1233,19 @@ def wall_vector(img_o, img_pre):
                         # 确定探测端点
                         x_k = x_line + xk_direc * dx
                         y_k = dk * x_k + db
+                        # 限制端点范围
+                        if x_k<0:x_k=0
+                        if x_k>=x:x_k=x-1
+                        if y_k<0:y_k=0
+                        if y_k>=y:y_k=y-1
                         x_k, y_k = int(x_k), int(y_k)
+                        # print('端侧探测点：',(x_k, y_k))
 
                         # 绘制探测线段
                         detection_line = np.zeros((y, x), np.uint8)
                         cv2.line(
-                            detection_line, (x_line, y_line), (int(
-                                x_k), int(y_k)), 1, 1
+                            detection_line, (x_line, y_line), 
+                            (int(x_k), int(y_k)), 1, 1
                         )
 
                         # 根据探测标记进行探测:是否有相似斜率的wall line - 同向/成对做好标记返回
@@ -1245,6 +1339,8 @@ def wall_vector(img_o, img_pre):
 
                                         break  # 由于已经找到了下一个探测像素点，因此跳出此八邻域寻找循环
 
+                        # print('完成探测阶段')
+
                         # 判断充填规则
                         # 若是同向wall line , 不进入充填阶段， 直接跳出
                         if is_re_wall_line:
@@ -1294,9 +1390,11 @@ def wall_vector(img_o, img_pre):
                                 # 增加探测距离
                                 dis_pix_detect += 1
 
+                        # print('完成充填阶段')
+
     ###############this part classify the rest of wall pix #########################################################
     # classify rest each prediction pix
-    # print("classify rest each prediction pix")
+    # print(" **************** classify rest each prediction pix **************** ")
     r_max = 999  # 最大探测半径
     # print("img size", [y, x])
     for yi in range(y):
@@ -1307,10 +1405,10 @@ def wall_vector(img_o, img_pre):
                 point_detect(xi, yi, r_max)
 
     ######### 区域生长阶段 ############
-    # print("区域生长阶段")
+    # print(" **************** generate K feature map **************** ")
 
     def isPointIn(point_x, point_y, x_b_min=0, x_b_max=x, y_b_min=0, y_b_max=y):
-        # 判断点是否在某一区域内
+        # 判断点是否在某一区域内（缩小后的预测图）
         if (
             point_x >= x_b_min
             and point_x < x_b_max
@@ -1323,8 +1421,12 @@ def wall_vector(img_o, img_pre):
 
     # 区域生长
     def k_RG(point_x, point_y, k_stand, k_rg_map, k_rg_flag_map, k_size=3, thr=0.5):
-        # 8邻域
-        # 0.5
+        # point_x, point_y - 判断点坐标
+        # k_stand - 标准斜率
+        # k_rg_map - 着色map
+        # k_rg_flag_map - 轨迹记号
+        # k_size = 3 - 3*3-1:8邻域
+        # thr=0.5
         # 判断是否已经遍历过
         if k_rg_flag_map[point_y, point_x] != 255:
             k_rg_flag_map[point_y, point_x] = 255  # 标记已经遍历
@@ -1349,7 +1451,8 @@ def wall_vector(img_o, img_pre):
                         num_same_k += 1
             seeds_x = []
             seeds_y = []
-            if num_same_k >= int(num_k * thr) and num_k >= int(num_near * thr):
+            # 相似点大于阈值 + 存在点大于阈值 + 必须为预测点
+            if num_same_k >= int(num_k * thr) and num_k >= int(num_near * thr) and new_line_map[point_y, point_x] > 0:
                 k_rg_map[point_y, point_x] = 255
                 seeds_x.append(point_x)
                 seeds_y.append(point_y)
@@ -1392,7 +1495,7 @@ def wall_vector(img_o, img_pre):
                                                 num_same_k_seed += 1
                             if num_same_k_seed >= int(
                                 num_k_seed * thr
-                            ) and num_k_seed >= int(num_near_seed * thr):
+                            ) and num_k_seed >= int(num_near_seed * thr) and new_line_map[seed_y_near, seed_x_near] > 0:
                                 is_same_k_flag = True
                             if is_same_k_flag:
                                 k_rg_map[seed_y_near, seed_x_near] = 255
@@ -1400,15 +1503,20 @@ def wall_vector(img_o, img_pre):
                                 seeds_y.append(seed_y_near)
 
     # wall_vectors = []
+    img_vector_vis = np.zeros((img_shape[0], img_shape[1], 3), np.uint8)
     img_vector = np.zeros((img_shape[0], img_shape[1]), np.uint8)
     img_feature = np.zeros((img_shape[0], img_shape[1], 3), np.uint8)
+    # img_vector_vis = np.zeros((new_resize_shape[1], new_resize_shape[0], 3), np.uint8)
+    # img_vector = np.zeros((new_resize_shape[1],new_resize_shape[0]), np.uint8)
+    # img_feature = np.zeros(( new_resize_shape[1],new_resize_shape[0], 3), np.uint8)
 
     k_rgs = [0, max_k, 1, -1, 0.4142, 2.4142, -0.4142, -2.4142]
     rg_flag_map = np.zeros((y, x), np.uint8)
     for k_rg in k_rgs:
-        rg_map = np.zeros((y, x), np.uint8)
+        rg_map = np.zeros((y, x), np.uint8)  # 为每种标准斜率新建map
         for x_rg in range(x):
             for y_rg in range(y):
+                # 此点是已被分配斜率的预测点 + 斜率与标准斜率相似
                 if new_line_map[y_rg, x_rg] > 0 and is_K_same(K_map[y_rg, x_rg], k_rg):
                     k_RG(
                         x_rg,
@@ -1420,16 +1528,19 @@ def wall_vector(img_o, img_pre):
 
         # 反变换到原始尺寸
         resize_shape = (img_shape[1], img_shape[0])
+        # rg_map = cv2.resize(rg_map, resize_shape,
+        #                     interpolation=cv2.INTER_NEAREST)
         rg_map = cv2.resize(rg_map, resize_shape,
-                            interpolation=cv2.INTER_NEAREST)
+                            interpolation=cv2.INTER_CUBIC)
+        _, rg_map = cv2.threshold(rg_map, 50, 255, cv2.THRESH_BINARY)  # 二值化
 
         # draw faeture
         if k_rg == 0:
-            img_feature[:, :, 0] += rg_map # 横向为蓝色
+            img_feature[:, :, 0] += rg_map  # 横向为蓝色
         elif k_rg == max_k:
-            img_feature[:, :, 1] += rg_map # 竖向为绿色
+            img_feature[:, :, 1] += rg_map  # 竖向为绿色
         else:
-            img_feature[:, :, 2] += rg_map # 斜向为红色
+            img_feature[:, :, 2] += rg_map  # 斜向为红色
 
         # 拟合轮廓成矩形
         contours, _ = cv2.findContours(
@@ -1440,13 +1551,30 @@ def wall_vector(img_o, img_pre):
             area = cv2.contourArea(cnt)
             if area < 5:
                 continue
-            cnts = findMaxMIOU(cnt, k_rg)
+            cnts = findMaxMIOU(cnt, k_rg, origi_pre)
+            # cnts = findMaxMIOU(cnt, k_rg, img_bool)
             for cnt_i in cnts:
+                if campIOU(cnt_i, origi_pre) < 0.3:
+                    continue
+                # if campIOU(cnt_i,img_bool)<0.3:continue
                 rect = cv2.minAreaRect(cnt_i)
                 points = cv2.boxPoints(rect)
 
                 # draw vecter img
-                cv2.drawContours(img_vector, [np.int0(points)], 0, (255), -1)
+                cv2.drawContours(
+                    img_vector, [np.int0(points)], 0, (255), -1)
+                new_img_vector = np.zeros(
+                    (img_shape[0], img_shape[1], 3), np.uint8)
+                # new_img_vector = np.zeros(
+                #     (new_resize_shape[1],new_resize_shape[0], 3), np.uint8)
+                color_vector = (random.randint(100, 250), random.randint(
+                    100, 250), random.randint(100, 250))
+                cv2.drawContours(new_img_vector, [
+                                 np.int0(points)], 0, color_vector, -1)
+                img_vector_vis += new_img_vector//2
+                cv2.drawContours(
+                    img_vector_vis, [np.int0(points)], 0, (0, 0, 255), 1)
+
                 """
                 # vector points
                 l1 = (points[0][0]-points[1][0])**2 + \
@@ -1476,5 +1604,5 @@ def wall_vector(img_o, img_pre):
                 wall_vector['isStructural'] = True
                 wall_vectors.append(wall_vector)
                 """
-    return img_all, img_wall, img_feature, img_vector  # wall_lines, img_pre, img_feature,   img_wallLines,K_map
+    return img_all, img_wall, img_feature, img_vector_vis, img_vector  # wall_lines, img_pre, img_feature,   img_wallLines,K_map
     # return wall_vectors

@@ -253,6 +253,20 @@ def test_mask_pre_iou(img_name_list):
     print('pre MIOU:',miou/len(img_name_list))
     print('---------------finish all--------------------')
 
+
+# test malposition
+# r1: resize
+test_dir='../../data/test_malposition/'
+name='t.png'
+img=cv2.imread(test_dir+name)
+resize_scale=max(img.shape)//500
+resize_shape = [img.shape[1]//resize_scale, img.shape[0]//resize_scale]
+img_c = cv2.resize(img, resize_shape, interpolation=cv2.INTER_NEAREST)
+img_c = cv2.resize(img_c, (img.shape[1], img.shape[0]), interpolation=cv2.INTER_CUBIC)
+_, img_c = cv2.threshold(img_c, 50, 255, cv2.THRESH_BINARY) 
+cv2.imwrite(test_dir+'t_resize.png',img_c)
+cv2.imwrite(test_dir+'t_compare.png',img_c//2+img//2)
+
 # draw all img all lines
 # for name in img_name_list:
 #     draw_all_lines(name)
@@ -263,7 +277,7 @@ def test_mask_pre_iou(img_name_list):
 # test_dir_iou(img_name_list,vector_prePost_path,dir_hz) # test dir_path MIOU
 
 # vector_img(img_name_list) # genera vector
-test_mask_vector_iou(img_name_list) # test vector MIOU
+# test_mask_vector_iou(img_name_list) # test vector MIOU
 
 # # test if-for 
 # a=10

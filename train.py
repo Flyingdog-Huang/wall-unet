@@ -42,8 +42,8 @@ from swin_unet.swinunet import SwinUnet
 # CVC dataset
 # dir_img = Path('../../../../data/floorplan/CVC-FP/')
 # dir_mask = Path('../../../../data/floorplan/CVC-FP/masks/')
-dir_img = Path('../../../../data/floorplan/cvc_clean/img/')
-dir_mask = Path('../../../../data/floorplan/cvc_clean/mask/')
+# dir_img = Path('../../../../data/floorplan/cvc_clean/img/')
+# dir_mask = Path('../../../../data/floorplan/cvc_clean/mask/')
 
 # r3dcvc data set
 # dir_img = Path('../../../../data/floorplan/r3d_cvc/imgs/')
@@ -60,6 +60,10 @@ dir_mask = Path('../../../../data/floorplan/cvc_clean/mask/')
 # dir_mask = Path('../../../../data/floorplan/JD_clean/mask/')
 # dir_img = Path('../../../../data/floorplan/after_resize/img/')
 # dir_mask = Path('../../../../data/floorplan/after_resize/mask/')
+# dir_img = Path('../../../../data/floorplan/JD_rotation/img/')
+# dir_mask = Path('../../../../data/floorplan/JD_rotation/mask/')
+dir_img = Path('../../../../data/floorplan/JD_sw1024/img/')
+dir_mask = Path('../../../../data/floorplan/JD_sw1024/mask/')
 
 # # PC test
 # dir_img = Path('../../../FloorPlan/2-Dataset/JD_clean_size/after_resize/img/')
@@ -81,16 +85,16 @@ is_tf = False
 # is_tf = True
 
 # aug on line
-is_aug = False
-# is_aug = True
+# is_aug = False
+is_aug = True
 
 # shift window
 is_sw = False
 # is_sw = True
 
 # multi-GPU
-# is_gpus = False
-is_gpus = True
+is_gpus = False
+# is_gpus = True
 
 # show the max MIOU
 Max_MIOU = 0
@@ -138,7 +142,7 @@ def train_net(net,
     # print()
     # print('-------------------------------------------------------')
     # print('Create data loaders')
-    loader_args = dict(batch_size=batch_size, num_workers=8, pin_memory=True)
+    loader_args = dict(batch_size=batch_size, num_workers=4, pin_memory=True)
     train_loader = DataLoader(train_set, shuffle=True, **loader_args)
     val_loader = DataLoader(val_set,
                             shuffle=False,
@@ -414,7 +418,8 @@ def train_net(net,
                 # Evaluation round
                 super_para = 4
                 cirle_step = n_train // (super_para * batch_size)
-                if cirle_step == 0: cirle_step = 1
+                if cirle_step == 0:
+                    cirle_step = 1
                 if global_step % cirle_step == 0:
                     # print()
                     # print('-------------------------------------------------------')
@@ -484,7 +489,7 @@ def train_net(net,
             Path(dir_checkpoint).mkdir(parents=True, exist_ok=True)
             model_name = str(
                 dir_checkpoint /
-                'checkpoint_epoch{}_cvc_resize_deeplab_iou{}.pth'.format(
+                'checkpoint_epoch{}_JD_rotation_unet_sw1024_augon_iou{}.pth'.format(
                     epoch, miou_epoch))
             if is_gpus:
                 torch.save(net.module.state_dict(), model_name)
@@ -498,7 +503,7 @@ def train_net(net,
         Path(dir_checkpoint).mkdir(parents=True, exist_ok=True)
         final_model_name = str(
             dir_checkpoint /
-            'checkpoint_epoch{}_cvc_resize_deeplab_iou{}.pth'.format(
+            'checkpoint_epoch{}_JD_rotation_unet_sw1024_augon_iou{}.pth'.format(
                 epochs, miou_epoch))
         if is_gpus:
             torch.save(net.module.state_dict(), final_model_name)
@@ -515,14 +520,14 @@ def get_args():
                         '-e',
                         metavar='E',
                         type=int,
-                        default=300,
+                        default=100,
                         help='Number of epochs')
     parser.add_argument('--batch-size',
                         '-b',
                         dest='batch_size',
                         metavar='B',
                         type=int,
-                        default=2,
+                        default=8,
                         help='Batch size')
     parser.add_argument('--learning-rate',
                         '-l',
@@ -567,7 +572,7 @@ if __name__ == '__main__':
 
     logging.basicConfig(level=logging.INFO,
                         format='%(levelname)s: %(message)s')
-    cuda_name = 'cuda'  # 'cuda:1'
+    cuda_name = 'cuda:1'  # 'cuda'
     device = torch.device(cuda_name if torch.cuda.is_available() else 'cpu')
     logging.info(f'Main device {device}')
 
@@ -576,9 +581,9 @@ if __name__ == '__main__':
     # n_classes is the number of probabilities you want to get per pixel
 
     # choose model
-    # net = UNet(n_channels=3, n_classes=2, bilinear=True)
+    net = UNet(n_channels=3, n_classes=2, bilinear=True)
     # net = UNet_Down(3, 2)
-    net = DeepLab(backbone='resnet', output_stride=16, num_classes=2)
+    # net = DeepLab(backbone='resnet', output_stride=16, num_classes=2)
     # net = UnetResnet50(n_channels=3, n_classes=2)
     # net = hrnet48(n_channels=3, n_classes=2)
     # net = seg_hrnet.get_seg_model(hrnet_config)
